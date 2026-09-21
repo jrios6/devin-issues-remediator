@@ -185,7 +185,7 @@ def dashboard():
 <style>
 *{{box-sizing:border-box}}
 body{{font-family:ui-sans-serif,system-ui,sans-serif;margin:0;background:#0b0d12;color:#dde1e8;font-size:14px}}
-main{{max-width:1100px;margin:0 auto;padding:1.2rem 1.4rem 2rem}}
+main{{padding:1.2rem 1.4rem 2rem}}
 header{{display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap;border-bottom:1px solid #232733;padding-bottom:.7rem;margin-bottom:1rem}}
 h1{{font-size:1.05rem;font-weight:650;margin:0}}
 h2{{font-size:.8rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8b93a5;margin:1.4rem 0 .5rem}}
