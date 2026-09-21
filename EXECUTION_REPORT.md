@@ -11,9 +11,9 @@ Step-by-step account of what was done for this assignment.
 Searched the Superset codebase for real, verifiable problems that match the repo's own stated standards (AGENTS.md / Cursor rules), and filed 5 GitHub issues, each with scope, acceptance criteria, and a cited **rule source** (the repo doc/standard being enforced — `AGENTS.md`, PEP 8, or the `naive_utcnow` contract) — a mix of maintenance items and one genuine behavioral defect:
 - **#1** — legacy `Dict`/`Optional`/`Union` generics in `superset/utils/json.py`
 - **#2** — `any` types in `superset-frontend/src/utils/localStorageHelpers.ts` and `fetchOptions.ts` (violates the repo's own no-`any` standard)
-- **#3** — `len(...) == 0 / > 0` truthiness violations in `pandas_postprocessing` + `slackv2.py`
+- **#3** — non-idiomatic `len(...) == 0 / > 0` truthiness comparisons in `pandas_postprocessing` + `slackv2.py` (a PEP 8 style convention, not a repo-enforced lint rule)
 - **#4** — legacy `Optional[X]` annotations in `superset/utils/encrypt.py` (modernize to `X | None`)
-- **#9** — behavioral bug: `superset/utils/oauth2.py` compares `datetime.now()` (local time) against the naive-UTC `access_token_expiration` column, so token freshness/refresh decisions are skewed by the host's UTC offset on non-UTC machines. Fix: use the repo's canonical `naive_utcnow()`.
+- **#9** — timezone-dependent OAuth token expiry: `superset/utils/oauth2.py` persists and compares `access_token_expiration` (a naive `DateTime` column) using `datetime.now()` host-local wall clock. A single consistently configured host behaves fine, but the persisted naive value is shared — workers with different timezone configs, or the same host after a TZ change, skew refresh decisions. Fix: normalize all writes/comparisons through the repo's `naive_utcnow()`.
 
 ## 3. Built the automation (Part 2)
 `devin-issue-remediator`, a FastAPI service in `cognition-takehome`:
@@ -29,6 +29,7 @@ Searched the Superset codebase for real, verifiable problems that match the repo
 - Dispatched issue #1 via `POST /issues/1/dispatch`, issues #2–#4 and #9 via the webhook path (`simulate_webhook.sh`).
 - All 5 Devin sessions ran in parallel and each opened a PR on the fork: #5, #6, #7, #8 (maintenance issues) and #11 (the `oauth2.py` datetime fix — all three `datetime.now()` sites switched to `naive_utcnow()`).
 - GitHub side-effects verified: `devin-in-progress` → `devin-pr-opened` label swaps and bot comments containing session + PR links on every issue; the PR watcher is now holding them there pending merge.
+- Review loop verified end-to-end: a human review comment on PR #11 asking for a regression test woke its owning session, which pushed `test_get_oauth2_access_token_expiry_uses_utc` — parametrized over UTC+8/UTC-8 host timezones via `TZ` + `time.tzset()` — that fails against the pre-fix `datetime.now()` code.
 
 ## 5. Iteration found during the run
 Two real fixes made mid-flight:
@@ -42,7 +43,8 @@ Two real fixes made mid-flight:
 - Per-issue comment trail on GitHub = human-readable status updates.
 
 ## 7. Results
-- 5/5 issues dispatched end-to-end, 5 PRs opened ([#5](https://github.com/jrios6/superset/pull/5), [#6](https://github.com/jrios6/superset/pull/6), [#7](https://github.com/jrios6/superset/pull/7), [#8](https://github.com/jrios6/superset/pull/8), [#11](https://github.com/jrios6/superset/pull/11)), 0 failures. Remediation PRs now carry real CI status (Apache suite + the `remediation-checks` workflow once merged); the only failing check is `dependency-review`, a fork-level "Dependency graph not enabled" repo setting unrelated to the changes.
+- 5/5 issues dispatched end-to-end, 5 PRs opened ([#5](https://github.com/jrios6/superset/pull/5), [#6](https://github.com/jrios6/superset/pull/6), [#7](https://github.com/jrios6/superset/pull/7), [#8](https://github.com/jrios6/superset/pull/8), [#11](https://github.com/jrios6/superset/pull/11)), 0 dispatch failures.
+- CI status at head: PR #11 is fully green (58 checks pass; unit tests + pre-commit + CodeQL + integration jobs). PRs #5–#8 carry the inherited Apache suite results; `dependency-review` now passes after enabling Dependency graph on the fork. The `remediation-checks` workflow ([PR #10](https://github.com/jrios6/superset/pull/10)) adds scoped ruff/unit-test and eslint/jest evidence on changed files once merged. Earlier transient failures (zizmor on the new workflow, dependency-review while Dependency graph was off) were fixed/configuration, not code defects.
 - Solution PR: https://github.com/jrios6/cognition-takehome/pull/1
 - `DEMO.md` in the repo is the 5-minute video script (What/How/Why/When).
 - Blueprint suggestion for the repo accepted — future sessions boot with deps installed.
