@@ -83,8 +83,10 @@ def tasks():
 
 
 @app.get("/api/events")
-def events(limit: int = 50):
-    return {"events": store.recent_events(limit)}
+def events(limit: int = 50, offset: int = 0):
+    return {"events": store.recent_events(limit, offset),
+            "total": store.event_count(),
+            "limit": limit, "offset": offset}
 
 
 @app.get("/api/poller")
@@ -185,7 +187,7 @@ def dashboard():
                  f"<td>{sess}</td><td>{pr}</td><td>{html.escape(detail)}</td>"
                  f"<td>{age}</td></tr>")
     evs = ""
-    for e in store.recent_events(20):
+    for e in store.recent_events(15):
         issue = ""
         if e["issue_number"]:
             issue = (f'<a href="https://github.com/{settings.github_repo}'
@@ -203,7 +205,7 @@ header{{display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap;border-bottom
 h1{{font-size:1.05rem;font-weight:650;margin:0}}
 h2{{font-size:.8rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8b93a5;margin:1.4rem 0 .5rem}}
 .meta{{color:#8b93a5;font-size:.82rem}}
-.meta code{{background:#1a1e29;padding:.1rem .35rem;border-radius:4px}}
+.label{{background:#1f6feb33;color:#7aa2ff;border:1px solid #1f6feb66;padding:.05rem .45rem;border-radius:999px;font-size:.75rem;font-weight:600;font-family:ui-monospace,SFMono-Regular,monospace}}
 a{{color:#7aa2ff;text-decoration:none}} a:hover{{text-decoration:underline}}
 header .links{{margin-left:auto;font-size:.82rem;display:flex;gap:.9rem;align-items:center}}
 .cards{{display:flex;gap:.6rem;flex-wrap:wrap}}
@@ -225,11 +227,13 @@ button{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:
 button:hover{{background:#232938}}
 #updated{{color:#6b7280;font-size:.78rem}}
 .ev-msg{{font-family:ui-monospace,SFMono-Regular,monospace;font-size:.8rem;color:#b8bfcd}}
+.pager{{display:flex;align-items:center;gap:.7rem;margin-top:.6rem}}
+button:disabled{{opacity:.4;cursor:default}}
 </style>
 <main>
 <header>
 <h1>Devin Issue Remediator</h1>
-<span class="meta">{settings.github_repo} · trigger <code>{settings.trigger_label}</code></span>
+<span class="meta">{settings.github_repo} · trigger <span class="label">{settings.trigger_label}</span></span>
 <button id="pollerbtn" onclick="togglePoller()"></button>
 <span id="updated"></span>
 <nav class="links"><a href="/report">report</a><a href="/metrics">metrics</a><a href="/api/tasks">api</a></nav>
@@ -241,6 +245,11 @@ button:hover{{background:#232938}}
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
+<div class="pager">
+<button id="prev" onclick="page(-1)">‹ newer</button>
+<span id="pageinfo" class="sub"></span>
+<button id="next" onclick="page(1)">older ›</button>
+</div>
 </main>
 <script>
 const ago = ts => {{
@@ -249,6 +258,8 @@ const ago = ts => {{
   if (s >= 3600) return `${{Math.floor(s / 3600)}}h ${{Math.floor(s % 3600 / 60)}}m ago`;
   return s >= 60 ? `${{Math.floor(s / 60)}}m ago` : `${{s}}s ago`;
 }};
+const PAGE = 15;
+let offset = 0;
 const ISSUE_BASE = 'https://github.com/{settings.github_repo}/issues/';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}})[c]);
 const linkify = s => esc(s).replace(/https?:\/\/\S+/g,
@@ -260,7 +271,7 @@ const pill = r => {{
 async function refresh() {{
   const [t, e, p] = await Promise.all([
     fetch('/api/tasks').then(r => r.json()),
-    fetch('/api/events?limit=20').then(r => r.json()),
+    fetch(`/api/events?limit=${{PAGE}}&offset=${{offset}}`).then(r => r.json()),
     fetch('/api/poller').then(r => r.json()),
   ]);
   const bs = t.counts.by_state, bk = t.counts.by_kind;
@@ -293,10 +304,19 @@ async function refresh() {{
     + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
     + `<td class="ev-msg">${{linkify(ev.message)}}</td></tr>`
   ).join('') || '<tr><td colspan=4>No events yet</td></tr>';
+  const from = e.total ? offset + 1 : 0;
+  document.getElementById('pageinfo').textContent =
+    `${{from}}–${{offset + e.events.length}} of ${{e.total}}`;
+  document.getElementById('prev').disabled = offset === 0;
+  document.getElementById('next').disabled = offset + e.events.length >= e.total;
   document.getElementById('pollerbtn').textContent =
     p.enabled ? `poller: on · ${{p.interval_seconds}}s` : 'poller: off';
   document.getElementById('updated').textContent =
     'updated ' + new Date().toLocaleTimeString();
+}}
+function page(d) {{
+  offset = Math.max(0, offset + d * PAGE);
+  refresh();
 }}
 async function togglePoller() {{
   const cur = await fetch('/api/poller').then(r => r.json());

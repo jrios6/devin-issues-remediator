@@ -114,11 +114,16 @@ class Store:
             return [dict(r) for r in c.execute(
                 "SELECT * FROM remediations ORDER BY issue_number")]
 
-    def recent_events(self, limit: int = 100) -> list[dict]:
+    def recent_events(self, limit: int = 100, offset: int = 0) -> list[dict]:
         with self._conn() as c:
             return [dict(r) for r in c.execute(
                 "SELECT * FROM events WHERE kind != 'config' "
-                "ORDER BY id DESC LIMIT ?", (limit,))]
+                "ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset))]
+
+    def event_count(self) -> int:
+        with self._conn() as c:
+            return c.execute(
+                "SELECT COUNT(*) n FROM events WHERE kind != 'config'").fetchone()["n"]
 
     def counts(self) -> dict:
         with self._conn() as c:
