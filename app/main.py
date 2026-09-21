@@ -230,7 +230,7 @@ button:disabled{{opacity:.4;cursor:default}}
 <option>pr_opened</option><option>merged</option><option>failed</option>
 </select></div></div>
 <table><thead><tr><th id="issueth" class="sortable" onclick="toggleSort()">Issue <span id="sortarrow">↓</span></th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
-<th>CI</th><th>Size</th><th>ACUs</th><th>Progress</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
+<th>CI</th><th>Size</th><th>ACUs</th><th>Progress</th><th>When</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
 <div class="pager">
 <button id="tprev" onclick="tpage(-1)">‹ prev</button>
 <span id="tpageinfo" class="sub"></span>
