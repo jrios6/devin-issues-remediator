@@ -38,7 +38,7 @@ Two real fixes made mid-flight:
 
 ## 6. Observability (Part 3)
 - `/` — live dashboard: stat cards (issues, PRs opened/merged/failed, CI green n/n, lines changed, total ACUs, avg time to PR), per-issue state (queued/running/pr_opened/merged/failed), session + PR links, CI status, PR size (+/− · files), ACUs · Devin mode, and a paginated event log. Cost/mode come from the session API (`acus_consumed`, `devin_mode`); PR size + CI from GitHub (`/pulls/{n}`, `/commits/{sha}/check-runs`), refreshed each tracker tick.
-- Caveat: this org's sessions currently report `acus_consumed: 0.0` via both `/sessions/{id}` and `/consumption/daily/sessions/{id}`, so the ACU figures read 0.0 in the demo run — the plumbing is verified, the metering feed for this org is not.
+- Note: the demo run's sessions report `acus_consumed: 0.0` (confirmed via `/sessions/{id}` and `/consumption/daily/sessions/{id}`) because they ran on SWE-2, which is currently free — five remediation PRs at zero billed ACUs. The same fields will populate as real spend on metered modes.
 - `/api/tasks` · `/api/events` — the JSON the dashboard polls; the same counters and latency figures are in `counts`.
 - Per-issue comment trail on GitHub = human-readable status updates.
 
