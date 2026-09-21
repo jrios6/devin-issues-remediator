@@ -14,12 +14,15 @@ class DevinClient:
 
     def create_session(self, prompt: str, repos: list[str], tags: list[str],
                        max_acu_limit: int | None = None,
+                       devin_mode: str | None = None,
                        structured_output_schema: dict | None = None,
                        title: str | None = None) -> dict:
         body: dict = {"prompt": prompt, "repos": repos, "tags": tags,
                       "unlisted": False, "bypass_approval": True}
         if max_acu_limit:
             body["max_acu_limit"] = max_acu_limit
+        if devin_mode:
+            body["devin_mode"] = devin_mode
         if structured_output_schema:
             body["structured_output_schema"] = structured_output_schema
             body["structured_output_required"] = True

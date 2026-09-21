@@ -91,6 +91,7 @@ pip install pytest && pytest tests/
 ## Safety rails
 
 - `DEVIN_MAX_ACU_LIMIT` caps spend per session.
+- `DEVIN_MODE` selects the agent mode (normal/fast/lite/ultra/fusion; empty = org default). `devin_mode`, ACU cap and poll interval are also editable live via the dashboard's `config` panel (`GET/POST /api/config`; runtime-only, resets on restart).
 - Only issues carrying `TRIGGER_LABEL` are dispatched; dedupe is enforced in the DB.
 - `POST /webhooks/github` supports HMAC-SHA256 verification when
   `GITHUB_WEBHOOK_SECRET` is configured; with it unset the endpoint is

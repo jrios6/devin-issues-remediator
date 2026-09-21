@@ -20,6 +20,7 @@ class Settings:
     devin_api_base: str = "https://api.devin.ai"
     github_api_base: str = "https://api.github.com"
     devin_max_acu_limit: int = 10
+    devin_mode: str = ""  # empty = org default; normal|fast|lite|ultra|fusion
     port: int = 8000
 
 
@@ -44,5 +45,6 @@ def load() -> Settings:
         db_path=os.environ.get("DB_PATH", "/data/remediator.db"),
         devin_api_base=os.environ.get("DEVIN_API_BASE", "https://api.devin.ai"),
         devin_max_acu_limit=int(os.environ.get("DEVIN_MAX_ACU_LIMIT", "10")),
+        devin_mode=os.environ.get("DEVIN_MODE", ""),
         port=int(os.environ.get("PORT", "8000")),
     )

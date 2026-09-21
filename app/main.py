@@ -102,6 +102,23 @@ async def set_poller(request: Request):
     return poller_state()
 
 
+@app.get("/api/config")
+def get_config():
+    return dispatcher.get_config()
+
+
+@app.post("/api/config")
+async def set_config(request: Request):
+    body = await request.json()
+    try:
+        cfg = dispatcher.set_config(body)
+    except (ValueError, TypeError) as e:
+        return Response(str(e), status_code=422)
+    store.event("config", None,
+                "config updated: " + ", ".join(f"{k}={v}" for k, v in body.items()))
+    return cfg
+
+
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
     rows = ""
@@ -185,6 +202,12 @@ th.sortable:hover{{color:#dde1e8}}
 .pager{{display:flex;align-items:center;gap:.7rem;margin-top:.6rem}}
 tr.filler td{{height:1.72rem}} tr.filler:hover{{background:none}}
 button:disabled{{opacity:.4;cursor:default}}
+#cfgbtn{{font-size:.8rem}}
+#cfgpanel{{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;background:#12151d;border:1px solid #232733;border-radius:8px;padding:.6rem .9rem;margin-bottom:1rem;font-size:.8rem;color:#8b93a5}}
+#cfgpanel.hidden{{display:none}}
+#cfgpanel label{{display:flex;align-items:center;gap:.4rem}}
+#cfgpanel select,#cfgpanel input{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.2rem .45rem;font-size:.8rem;width:7rem}}
+#cfgpanel select{{width:9rem}}
 </style>
 <main>
 <header>
@@ -192,8 +215,15 @@ button:disabled{{opacity:.4;cursor:default}}
 <span class="meta">{settings.github_repo} · trigger <span class="label">{settings.trigger_label}</span></span>
 <button id="pollerbtn" onclick="togglePoller()" title="Toggle issue polling"></button>
 <span id="updated"></span>
-<nav class="links"><a href="/api/tasks" target="_blank" rel="noopener">api</a></nav>
+<nav class="links"><button id="cfgbtn" onclick="toggleCfg()" title="Runtime settings">config</button><a href="/api/tasks" target="_blank" rel="noopener">api</a></nav>
 </header>
+<div id="cfgpanel" class="hidden">
+  <label>mode <select id="cfg-mode"></select></label>
+  <label>max ACUs/session <input id="cfg-acu" type="number" min="0" step="1"></label>
+  <label>poll interval (s) <input id="cfg-poll" type="number" min="5" step="5"></label>
+  <button onclick="saveCfg()">save</button>
+  <span id="cfgmsg" class="sub"></span>
+</div>
 <div class="cards" id="stats"></div>
 <div class="tblhead"><h2>Remediations</h2><div class="filters" id="statefilters"></div></div>
 <table><thead><tr><th id="issueth" class="sortable" onclick="toggleSort()">Issue <span id="sortarrow">↓</span></th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
@@ -332,6 +362,32 @@ async function page(d) {{
   await refresh();
   window.scrollTo({{top: document.body.scrollHeight, behavior: 'smooth'}});
 }}
+function toggleCfg() {{
+  document.getElementById('cfgpanel').classList.toggle('hidden');
+}}
+let cfgLoaded = false;
+async function loadCfg() {{
+  if (cfgLoaded) return;
+  cfgLoaded = true;
+  const c = await fetch('/api/config').then(r => r.json());
+  const sel = document.getElementById('cfg-mode');
+  sel.innerHTML = '<option value="">org default</option>'
+    + c.modes.map(m => `<option${{m === c.devin_mode ? ' selected' : ''}}>${{m}}</option>`).join('');
+  document.getElementById('cfg-acu').value = c.devin_max_acu_limit;
+  document.getElementById('cfg-poll').value = c.poll_interval_seconds;
+}}
+async function saveCfg() {{
+  const body = {{
+    devin_mode: document.getElementById('cfg-mode').value,
+    devin_max_acu_limit: +document.getElementById('cfg-acu').value,
+    poll_interval_seconds: +document.getElementById('cfg-poll').value,
+  }};
+  const r = await fetch('/api/config', {{method: 'POST',
+    headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(body)}});
+  document.getElementById('cfgmsg').textContent = r.ok ? 'saved' : await r.text();
+  setTimeout(() => document.getElementById('cfgmsg').textContent = '', 3000);
+  refresh();
+}}
 async function togglePoller() {{
   const cur = await fetch('/api/poller').then(r => r.json());
   await fetch('/api/poller', {{
@@ -341,6 +397,7 @@ async function togglePoller() {{
   }});
   refresh();
 }}
+loadCfg();
 refresh();
 setInterval(refresh, 10000);
 setInterval(tickUpdated, 1000);

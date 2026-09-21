@@ -54,6 +54,9 @@ class Dispatcher:
         self._stop = threading.Event()
         self.poller_enabled = settings.poll_interval_seconds > 0
         self.poller_interval = settings.poll_interval_seconds or 60
+        # Runtime-tunable dispatch config (editable via /api/config)
+        self.cfg = {"devin_mode": settings.devin_mode,
+                    "devin_max_acu_limit": settings.devin_max_acu_limit}
 
     # ---------- event intake ----------
 
@@ -81,7 +84,8 @@ class Dispatcher:
                 prompt=build_prompt(issue, self.s.github_repo),
                 repos=[self.s.github_repo],
                 tags=["issue-remediation", f"issue-{n}"],
-                max_acu_limit=self.s.devin_max_acu_limit,
+                max_acu_limit=self.cfg["devin_max_acu_limit"] or None,
+                devin_mode=self.cfg["devin_mode"] or None,
                 structured_output_schema=STRUCTURED_SCHEMA,
                 title=f"Fix issue #{n}: {issue['title'][:60]}",
             )
@@ -206,6 +210,33 @@ class Dispatcher:
 
     def set_poller(self, enabled: bool):
         self.poller_enabled = enabled
+
+    MODES = ("normal", "fast", "lite", "ultra", "fusion")
+
+    def get_config(self) -> dict:
+        return {"devin_mode": self.cfg["devin_mode"] or "",
+                "devin_max_acu_limit": self.cfg["devin_max_acu_limit"],
+                "poll_interval_seconds": self.poller_interval,
+                "modes": list(self.MODES)}
+
+    def set_config(self, body: dict) -> dict:
+        if "devin_mode" in body:
+            mode = str(body["devin_mode"] or "")
+            if mode and mode not in self.MODES:
+                raise ValueError(f"devin_mode must be one of {self.MODES} or empty")
+            self.cfg["devin_mode"] = mode
+        if "devin_max_acu_limit" in body:
+            v = int(body["devin_max_acu_limit"] or 0)
+            if v < 0:
+                raise ValueError("devin_max_acu_limit must be >= 0")
+            self.cfg["devin_max_acu_limit"] = v
+        if "poll_interval_seconds" in body:
+            v = int(body["poll_interval_seconds"])
+            if v < 5:
+                raise ValueError("poll_interval_seconds must be >= 5")
+            self.poller_interval = v
+            self.poller_enabled = True
+        return self.get_config()
 
     def _poll_loop(self):
         while not self._stop.is_set():
