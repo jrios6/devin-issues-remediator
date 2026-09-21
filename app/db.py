@@ -139,5 +139,10 @@ class Store:
                 " MAX(completed_at - dispatched_at) max_s"
                 " FROM remediations WHERE completed_at IS NOT NULL AND dispatched_at IS NOT NULL"
             ).fetchone()
+            pickup = c.execute(
+                "SELECT AVG(dispatched_at - created_at) avg_s"
+                " FROM remediations WHERE dispatched_at IS NOT NULL"
+            ).fetchone()
             return {"by_state": by_state, "by_kind": by_kind,
-                    "durations": dict(dur) if dur else {}}
+                    "durations": dict(dur) if dur else {},
+                    "pickup": dict(pickup) if pickup else {}}
