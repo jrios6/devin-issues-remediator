@@ -232,7 +232,9 @@ button:hover{{background:#232938}}
 <script>
 const ago = ts => {{
   const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
-  return s >= 60 ? `${{Math.floor(s / 60)}}m${{s % 60}}s ago` : `${{s}}s ago`;
+  if (s >= 86400) return `${{Math.floor(s / 86400)}}d ${{Math.floor(s % 86400 / 3600)}}h ago`;
+  if (s >= 3600) return `${{Math.floor(s / 3600)}}h ${{Math.floor(s % 3600 / 60)}}m ago`;
+  return s >= 60 ? `${{Math.floor(s / 60)}}m ago` : `${{s}}s ago`;
 }};
 const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}})[c]);
 const pill = r => {{
@@ -287,4 +289,8 @@ setInterval(refresh, 10000);
 
 def _ago(ts: float) -> str:
     s = int(time.time() - ts)
-    return f"{s // 60}m{s % 60}s ago" if s >= 60 else f"{s}s ago"
+    if s >= 86400:
+        return f"{s // 86400}d {s % 86400 // 3600}h ago"
+    if s >= 3600:
+        return f"{s // 3600}h {s % 3600 // 60}m ago"
+    return f"{s // 60}m ago" if s >= 60 else f"{s}s ago"
