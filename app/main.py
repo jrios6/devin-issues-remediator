@@ -165,7 +165,7 @@ def dashboard():
         f"<tr><td>{_ago(e['ts'])}</td><td>{e['kind']}</td>"
         f"<td>#{e['issue_number'] or ''}</td><td>{html.escape(str(e['message']))}</td></tr>"
         for e in store.recent_events(20))
-    return f"""<!doctype html><meta http-equiv="refresh" content="15">
+    return f"""<!doctype html>
 <title>Devin Issue Remediator</title>
 <style>
 body{{font-family:system-ui,sans-serif;margin:2rem;background:#0f1117;color:#e6e6e6}}
@@ -174,17 +174,48 @@ td,th{{border:1px solid #333;padding:.4rem .6rem;text-align:left;font-size:.9rem
 a{{color:#7aa2ff}} .running{{color:#fbbf24}} .succeeded{{color:#34d399}}
 .merged{{color:#34d399}} .pr_opened{{color:#a78bfa}}
 .failed{{color:#f87171}} .queued{{color:#9ca3af}} h1,h2{{font-weight:600}}
+#updated{{color:#9ca3af;font-size:.8rem}}
 </style>
 <h1>Devin Issue Remediator — {settings.github_repo}</h1>
 <p>Trigger label: <code>{settings.trigger_label}</code> ·
 Poller: {"every " + str(settings.poll_interval_seconds) + "s" if settings.poll_interval_seconds else "off"} ·
+auto-updates every 10s <span id="updated"></span> ·
 <a href="/report">report</a> · <a href="/metrics">metrics</a> · <a href="/api/tasks">api</a></p>
 <h2>Remediations</h2>
-<table><tr><th>Issue</th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
-<th>Detail</th><th>Seen</th></tr>{rows or '<tr><td colspan=7>No issues yet</td></tr>'}</table>
+<table><thead><tr><th>Issue</th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
+<th>Detail</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
 <h2>Recent events</h2>
-<table><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr>
-{evs or '<tr><td colspan=4>No events yet</td></tr>'}</table>"""
+<table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
+<tbody id="eventrows">{evs}</tbody></table>
+<script>
+const ago = ts => {{
+  const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
+  return s >= 60 ? `${{Math.floor(s / 60)}}m${{s % 60}}s ago` : `${{s}}s ago`;
+}};
+const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}})[c]);
+async function refresh() {{
+  const [t, e] = await Promise.all([
+    fetch('/api/tasks').then(r => r.json()),
+    fetch('/api/events?limit=20').then(r => r.json()),
+  ]);
+  document.getElementById('taskrows').innerHTML = t.tasks.map(r => {{
+    const sess = r.session_url ? `<a href="${{r.session_url}}">session</a>` : '—';
+    const pr = r.pr_url ? `<a href="${{r.pr_url}}">PR</a>` : '—';
+    const ps = r.pr_state ? ` (${{r.pr_state}})` : '';
+    return `<tr><td>#${{r.issue_number}}</td><td>${{esc(r.issue_title)}}</td>`
+      + `<td class="${{r.state}}">${{r.state}}${{ps}}</td><td>${{sess}}</td><td>${{pr}}</td>`
+      + `<td>${{esc(r.detail || '')}}</td><td>${{ago(r.created_at)}}</td></tr>`;
+  }}).join('') || '<tr><td colspan=7>No issues yet</td></tr>';
+  document.getElementById('eventrows').innerHTML = e.events.map(ev =>
+    `<tr><td>${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
+    + `<td>${{ev.issue_number ? '#' + ev.issue_number : ''}}</td><td>${{esc(ev.message)}}</td></tr>`
+  ).join('') || '<tr><td colspan=4>No events yet</td></tr>';
+  document.getElementById('updated').textContent =
+    '· updated ' + new Date().toLocaleTimeString();
+}}
+refresh();
+setInterval(refresh, 10000);
+</script>"""
 
 
 def _ago(ts: float) -> str:
