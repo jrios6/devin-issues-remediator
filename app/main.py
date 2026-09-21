@@ -201,15 +201,22 @@ th.sortable:hover{{color:#dde1e8}}
 tr.filler td{{height:1.72rem}} tr.filler:hover{{background:none}}
 button:disabled{{opacity:.4;cursor:default}}
 #cfgbtn{{font-size:.8rem}}
-.modal{{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:10}}
+.modal{{position:fixed;inset:0;background:#07090dcc;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:10;backdrop-filter:blur(2px)}}
 .modal.hidden{{display:none}}
-#cfgpanel{{background:#12151d;border:1px solid #2b3242;border-radius:10px;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:.7rem;min-width:320px;font-size:.85rem;color:#8b93a5;box-shadow:0 8px 30px #0009}}
-#cfgpanel .cfghead{{display:flex;justify-content:space-between;align-items:center;color:#dde1e8;font-weight:600;font-size:.9rem}}
-#cfgpanel .x{{background:none;border:none;color:#8b93a5;font-size:1.1rem;padding:0 .2rem;line-height:1}}
+#cfgpanel{{background:#141824;border:1px solid #2f3748;border-radius:12px;padding:1.1rem 1.3rem 1rem;display:flex;flex-direction:column;gap:.85rem;min-width:340px;font-size:.85rem;color:#8b93a5;box-shadow:0 12px 40px #000b;border-top:2px solid #1f6feb;animation:pop .12s ease-out}}
+@keyframes pop{{from{{transform:scale(.97);opacity:0}}to{{transform:scale(1);opacity:1}}}}
+#cfgpanel .cfghead{{display:flex;justify-content:space-between;align-items:flex-start}}
+#cfgpanel .cfgtitle{{color:#dde1e8;font-weight:650;font-size:.95rem}}
+#cfgpanel .cfgsub{{color:#6b7280;font-size:.72rem;margin-top:.15rem}}
+#cfgpanel .x{{background:none;border:none;color:#6b7280;font-size:1.15rem;padding:0 .2rem;line-height:1;cursor:pointer}}
 #cfgpanel .x:hover{{color:#dde1e8}}
-#cfgpanel label{{display:flex;align-items:center;justify-content:space-between;gap:.6rem}}
-#cfgpanel select,#cfgpanel input{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.25rem .45rem;font-size:.82rem;width:9rem}}
-#cfgpanel .cfgfoot{{display:flex;align-items:center;gap:.7rem;justify-content:flex-end}}
+#cfgpanel .cfgrow{{display:flex;align-items:center;justify-content:space-between;gap:.8rem}}
+#cfgpanel .cfgrow>span{{font-size:.82rem}}
+#cfgpanel select,#cfgpanel input{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:7px;padding:.32rem .5rem;font-size:.82rem;width:9.5rem;outline:none;transition:border-color .1s}}
+#cfgpanel select:focus,#cfgpanel input:focus{{border-color:#1f6feb}}
+#cfgpanel .cfgfoot{{display:flex;align-items:center;gap:.7rem;justify-content:flex-end;border-top:1px solid #232733;padding-top:.8rem}}
+#cfgpanel .primary{{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600;padding:.3rem 1rem}}
+#cfgpanel .primary:hover{{background:#3b82f6;border-color:#3b82f6}}
 </style>
 <main>
 <header>
@@ -221,12 +228,15 @@ button:disabled{{opacity:.4;cursor:default}}
 </header>
 <div id="cfgmodal" class="modal hidden" onclick="if(event.target===this)toggleCfg()">
 <div id="cfgpanel">
-  <div class="cfghead"><span>Runtime settings</span><button class="x" onclick="toggleCfg()">×</button></div>
-  <label>mode <select id="cfg-mode"></select></label>
-  <label>max ACUs/session <input id="cfg-acu" type="number" min="0" step="1"></label>
-  <label>poll interval (s) <input id="cfg-poll" type="number" min="5" step="5"></label>
-  <div class="cfgfoot"><button onclick="saveCfg()">save</button>
-  <span id="cfgmsg" class="sub"></span></div>
+  <div class="cfghead">
+    <div><div class="cfgtitle">Runtime settings</div>
+    <div class="cfgsub">apply to the next dispatched session · reset on restart</div></div>
+    <button class="x" onclick="toggleCfg()" title="Close">×</button>
+  </div>
+  <div class="cfgrow"><span>agent mode</span><select id="cfg-mode"></select></div>
+  <div class="cfgrow"><span>max ACUs / session</span><input id="cfg-acu" type="number" min="0" step="1"></div>
+  <div class="cfgrow"><span>poll interval (s)</span><input id="cfg-poll" type="number" min="5" step="5"></div>
+  <div class="cfgfoot"><span id="cfgmsg" class="sub"></span><button class="primary" onclick="saveCfg()">save</button></div>
 </div>
 </div>
 <div class="cards" id="stats"></div>
