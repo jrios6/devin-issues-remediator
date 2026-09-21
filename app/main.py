@@ -298,7 +298,7 @@ async function refresh() {{
     ['CI green', `${{tot.ci_passing || 0}}/${{opened}}`],
     ['lines changed', `<span class="add">+${{tot.additions || 0}}</span> <span class="del">−${{tot.deletions || 0}}</span>`],
     ['total ACUs', (tot.acus || 0).toFixed(1)],
-    ['avg time to PR', dur(t.counts.durations && t.counts.durations.avg_s)],
+    ['avg agent time', dur(t.counts.durations && t.counts.durations.avg_s)],
   ];
   document.getElementById('stats').innerHTML = cards.map(([l, n]) =>
     `<div class="card"><div class="n">${{n}}</div><div class="l">${{l}}</div></div>`).join('');

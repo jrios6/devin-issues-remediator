@@ -179,7 +179,8 @@ class Dispatcher:
         """Pull cost (ACUs), mode, PR size and CI status for the dashboard."""
         n = r["issue_number"]
         fields = {"pr_additions": pr["additions"], "pr_deletions": pr["deletions"],
-                  "pr_files": pr["changed_files"], "pr_comments": pr["comments"]}
+                  "pr_files": pr["changed_files"], "pr_comments": pr["comments"],
+                  "pr_opened_at": pr["created_at_ts"]}
         try:
             fields["pr_checks"] = self.gh.check_summary(pr["head_sha"])
         except Exception as e:  # noqa: BLE001

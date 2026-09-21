@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS remediations (
     pr_deletions   INTEGER,
     pr_files       INTEGER,
     pr_checks      TEXT,                    -- passing | failing | pending
-    pr_comments    INTEGER
+    pr_comments    INTEGER,
+    pr_opened_at   REAL                     -- real PR created_at from GitHub (agent wall-clock)
 );
 CREATE TABLE IF NOT EXISTS events (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +45,8 @@ class Store:
             cols = {r["name"] for r in c.execute("PRAGMA table_info(remediations)")}
             for col, typ in ("pr_state", "TEXT"), ("acus", "REAL"), ("devin_mode", "TEXT"), \
                     ("pr_additions", "INTEGER"), ("pr_deletions", "INTEGER"), \
-                    ("pr_files", "INTEGER"), ("pr_checks", "TEXT"), ("pr_comments", "INTEGER"):
+                    ("pr_files", "INTEGER"), ("pr_checks", "TEXT"), ("pr_comments", "INTEGER"), \
+                    ("pr_opened_at", "REAL"):
                 if col not in cols:
                     c.execute(f"ALTER TABLE remediations ADD COLUMN {col} {typ}")
 
@@ -154,10 +156,10 @@ class Store:
                 "SELECT kind, COUNT(*) n FROM events GROUP BY kind").fetchall()
             by_kind = {r["kind"]: r["n"] for r in events}
             dur = c.execute(
-                "SELECT AVG(completed_at - dispatched_at) avg_s,"
-                " MIN(completed_at - dispatched_at) min_s,"
-                " MAX(completed_at - dispatched_at) max_s"
-                " FROM remediations WHERE completed_at IS NOT NULL AND dispatched_at IS NOT NULL"
+                "SELECT AVG(pr_opened_at - dispatched_at) avg_s,"
+                " MIN(pr_opened_at - dispatched_at) min_s,"
+                " MAX(pr_opened_at - dispatched_at) max_s"
+                " FROM remediations WHERE pr_opened_at IS NOT NULL AND dispatched_at IS NOT NULL"
             ).fetchone()
             totals = c.execute(
                 "SELECT COALESCE(SUM(acus),0) acus, COALESCE(SUM(pr_additions),0) additions,"

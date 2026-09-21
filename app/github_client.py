@@ -1,4 +1,5 @@
 import httpx
+from datetime import datetime
 
 
 class GitHubClient:
@@ -45,6 +46,8 @@ class GitHubClient:
             state = "closed" if pr.get("state") == "closed" else "open"
         return {
             "state": state,
+            "created_at_ts": datetime.fromisoformat(
+                pr["created_at"].replace("Z", "+00:00")).timestamp(),
             "additions": pr.get("additions"),
             "deletions": pr.get("deletions"),
             "changed_files": pr.get("changed_files"),
