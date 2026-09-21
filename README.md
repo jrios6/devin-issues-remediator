@@ -75,6 +75,14 @@ DB_PATH=./remediator.db uvicorn app.main:app --port 8000
   curl -X POST localhost:8000/issues/3/dispatch
   ```
 
+### Writing good issues
+
+The service remediates whatever the issue says — quality in, quality out. Each
+`devin-fix` issue should state the problem, a narrow scope ("only these
+files"), acceptance criteria, and a **rule source**: a link to the repo doc or
+lint rule being enforced (e.g. `AGENTS.md`, `.cursor/rules/*.mdc`, an external
+standard like PEP 8) so reviewers can verify the claim instead of trusting it.
+
 ## Tests
 
 ```bash
