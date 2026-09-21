@@ -226,6 +226,7 @@ button:hover{{background:#232938}}
 #updated{{color:#6b7280;font-size:.78rem}}
 .ev-msg{{font-family:ui-monospace,SFMono-Regular,monospace;font-size:.8rem;color:#b8bfcd}}
 .pager{{display:flex;align-items:center;gap:.7rem;margin-top:.6rem}}
+tr.filler td{{height:1.72rem}} tr.filler:hover{{background:none}}
 button:disabled{{opacity:.4;cursor:default}}
 </style>
 <main>
@@ -302,7 +303,8 @@ async function refresh() {{
     `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
     + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
     + `<td class="ev-msg">${{linkify(ev.message)}}</td></tr>`
-  ).join('') || '<tr><td colspan=4>No events yet</td></tr>';
+  ).join('') + '<tr class="filler"><td colspan=4></td></tr>'.repeat(
+    Math.max(0, PAGE - e.events.length));
   const from = e.total ? offset + 1 : 0;
   document.getElementById('pageinfo').textContent =
     `${{from}}–${{offset + e.events.length}} of ${{e.total}}`;
@@ -317,9 +319,10 @@ let lastUpdate = Date.now() / 1000;
 function tickUpdated() {{
   document.getElementById('updated').textContent = 'updated ' + ago(lastUpdate);
 }}
-function page(d) {{
+async function page(d) {{
   offset = Math.max(0, offset + d * PAGE);
-  refresh();
+  await refresh();
+  window.scrollTo({{top: document.body.scrollHeight, behavior: 'smooth'}});
 }}
 async function togglePoller() {{
   const cur = await fetch('/api/poller').then(r => r.json());
