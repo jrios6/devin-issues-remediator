@@ -17,7 +17,7 @@ Searched the Superset codebase for real, verifiable problems that match the repo
 
 ## 3. Built the automation (Part 2)
 `devin-issue-remediator`, a FastAPI service in `cognition-takehome`:
-- **Triggers**: `POST /webhooks/github` (HMAC-SHA256 verified `issues` events) + a configurable label poller for environments without a public URL (`POLL_INTERVAL_SECONDS`).
+- **Triggers**: `POST /webhooks/github` supports HMAC-SHA256 verification when `GITHUB_WEBHOOK_SECRET` is configured, plus a configurable label poller for environments without a public URL (`POLL_INTERVAL_SECONDS`). For a public deployment, require the secret and protect or disable the unauthenticated `/scan` and `/issues/{number}/dispatch` endpoints.
 - **Dispatch**: for each new `devin-fix` issue, refetches the canonical issue from the GitHub API, compiles title/body/acceptance criteria into a scoped prompt, and calls `POST /v3/organizations/{org}/sessions` with `repos=[jrios6/superset]`, `max_acu_limit`, tags, and a `structured_output_schema` (`pr_url`, `summary`, `tests_run`, `outcome`).
 - **Tracking**: a background loop polls `GET /v3/.../sessions/{id}` until each session's PR appears, then keeps polling the PR itself until it reaches a terminal state. On PR opened → `devin-pr-opened` + comment the PR link; on merge → `devin-done`; on closed-unmerged or session-ending-without-PR → `devin-failed` + session link. Success is only ever claimed on merge.
 - **State**: SQLite (`upsert_queued` = dedupe, durable across restarts) plus an event log; PR state is tracked per remediation.

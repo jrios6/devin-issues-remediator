@@ -23,6 +23,12 @@ app = FastAPI(title="devin-issue-remediator")
 
 @app.on_event("startup")
 def _startup():
+    if not settings.webhook_secret:
+        logging.getLogger(__name__).warning(
+            "GITHUB_WEBHOOK_SECRET unset: /webhooks/github is unauthenticated. "
+            "Set it for any deployment reachable beyond localhost; "
+            "the manual /scan and /issues/{n}/dispatch endpoints carry no auth."
+        )
     dispatcher.start()
 
 

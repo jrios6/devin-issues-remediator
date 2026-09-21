@@ -14,7 +14,8 @@ when the PR actually merges (a closed-unmerged PR → `devin-failed`).
 ```
 GitHub issue labeled "devin-fix"
         │
-        ├──► POST /webhooks/github   (real-time, HMAC-verified)
+        ├──► POST /webhooks/github   (real-time; HMAC-SHA256 verified
+        │                             when GITHUB_WEBHOOK_SECRET is set)
         └──► background poller       (POLL_INTERVAL_SECONDS — works with no public URL)
                         │
                         ▼
@@ -93,4 +94,8 @@ pip install pytest && pytest tests/
 
 - `DEVIN_MAX_ACU_LIMIT` caps spend per session.
 - Only issues carrying `TRIGGER_LABEL` are dispatched; dedupe is enforced in the DB.
-- Webhook payloads are HMAC-verified when `GITHUB_WEBHOOK_SECRET` is set.
+- `POST /webhooks/github` supports HMAC-SHA256 verification when
+  `GITHUB_WEBHOOK_SECRET` is configured; with it unset the endpoint is
+  unauthenticated (a startup warning is logged). For a public deployment,
+  require the secret and protect or disable the unauthenticated `/scan` and
+  `/issues/{number}/dispatch` endpoints.
