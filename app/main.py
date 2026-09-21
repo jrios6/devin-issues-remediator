@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import html
 import logging
+import re
 import time
 from datetime import datetime, timezone
 
@@ -191,7 +192,7 @@ def dashboard():
                      f'/issues/{e["issue_number"]}" target="_blank" rel="noopener">'
                      f'#{e["issue_number"]}</a>')
         evs += (f"<tr><td>{_ago(e['ts'])}</td><td>{e['kind']}</td>"
-                f"<td>{issue}</td><td>{html.escape(str(e['message']))}</td></tr>")
+                f"<td>{issue}</td><td>{_linkify(str(e['message']))}</td></tr>")
     return f"""<!doctype html>
 <title>Devin Issue Remediator</title>
 <style>
@@ -250,6 +251,8 @@ const ago = ts => {{
 }};
 const ISSUE_BASE = 'https://github.com/{settings.github_repo}/issues/';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}})[c]);
+const linkify = s => esc(s).replace(/https?:\/\/\S+/g,
+  u => `<a href="${{u}}" target="_blank" rel="noopener">${{u}}</a>`);
 const pill = r => {{
   const ps = r.pr_state ? ` <span class="sub">· ${{esc(r.pr_state)}}</span>` : '';
   return `<span class="pill ${{r.state}}">${{esc(r.state)}}</span>${{ps}}`;
@@ -288,7 +291,7 @@ async function refresh() {{
   document.getElementById('eventrows').innerHTML = e.events.map(ev =>
     `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
     + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
-    + `<td class="ev-msg">${{esc(ev.message)}}</td></tr>`
+    + `<td class="ev-msg">${{linkify(ev.message)}}</td></tr>`
   ).join('') || '<tr><td colspan=4>No events yet</td></tr>';
   document.getElementById('pollerbtn').textContent =
     p.enabled ? `poller: on · ${{p.interval_seconds}}s` : 'poller: off';
@@ -307,6 +310,13 @@ async function togglePoller() {{
 refresh();
 setInterval(refresh, 10000);
 </script>"""
+
+
+def _linkify(message: str) -> str:
+    return re.sub(
+        r"https?://\S+",
+        lambda m: f'<a href="{m.group(0)}" target="_blank" rel="noopener">{m.group(0)}</a>',
+        html.escape(message))
 
 
 def _ago(ts: float) -> str:
