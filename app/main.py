@@ -4,10 +4,8 @@ import html
 import logging
 import re
 import time
-from datetime import datetime, timezone
-
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse
 
 from .config import load
 from .db import Store
@@ -104,69 +102,6 @@ async def set_poller(request: Request):
     return poller_state()
 
 
-@app.get("/metrics", response_class=PlainTextResponse)
-def metrics():
-    c = store.counts()
-    lines = [
-        "# HELP issues_detected_total Issues seen carrying the trigger label",
-        "# TYPE issues_detected_total counter",
-        f"issues_detected_total {c['by_kind'].get('detected', 0)}",
-        "# HELP devin_sessions_dispatched_total Devin sessions created",
-        "# TYPE devin_sessions_dispatched_total counter",
-        f"devin_sessions_dispatched_total {c['by_kind'].get('dispatched', 0)}",
-        "# HELP prs_opened_total Remediations that produced a PR",
-        "# TYPE prs_opened_total counter",
-        f"prs_opened_total {c['by_kind'].get('pr_opened', 0)}",
-        "# HELP remediations_failed_total Remediations that failed",
-        "# TYPE remediations_failed_total counter",
-        f"remediations_failed_total {c['by_state'].get('failed', 0)}",
-        "# HELP remediations_merged_total Remediations merged into the target repo",
-        "# TYPE remediations_merged_total counter",
-        f"remediations_merged_total {c['by_state'].get('merged', 0)}",
-        "# HELP remediations_inflight Currently queued, running, or awaiting PR merge",
-        "# TYPE remediations_inflight gauge",
-        f"remediations_inflight {c['by_state'].get('queued', 0) + c['by_state'].get('running', 0) + c['by_state'].get('pr_opened', 0)}",
-        "# HELP remediation_duration_seconds Time from dispatch to completion",
-        "# TYPE remediation_duration_seconds summary",
-    ]
-    d = c["durations"]
-    for k in ("avg_s", "min_s", "max_s"):
-        v = d.get(k)
-        lines.append(f"remediation_duration_seconds{{stat=\"{k}\"}} {v or 0}")
-    return "\n".join(lines) + "\n"
-
-
-@app.get("/report", response_class=PlainTextResponse)
-def report():
-    c = store.counts()
-    t = store.all()
-    merged = c["by_state"].get("merged", 0)
-    failed = c["by_state"].get("failed", 0)
-    inflight = (c["by_state"].get("queued", 0) + c["by_state"].get("running", 0)
-                + c["by_state"].get("pr_opened", 0))
-    d = c["durations"]
-    lines = [
-        "# Remediation report",
-        f"_Generated {datetime.now(timezone.utc).isoformat(timespec='seconds')}_", "",
-        f"- Issues detected: **{len(t)}**",
-        f"- Merged: **{merged}** | Failed: **{failed}** | In flight (queued/running/awaiting merge): **{inflight}**",
-        f"- PRs opened: **{c['by_kind'].get('pr_opened', 0)}**",
-        f"- Avg time to remediate: **{_fmt_s(d.get('avg_s'))}** "
-        f"(min {_fmt_s(d.get('min_s'))}, max {_fmt_s(d.get('max_s'))})",
-        f"- Merge rate (PRs merged / opened): **{(merged / c['by_kind'].get('pr_opened', 0) * 100) if c['by_kind'].get('pr_opened') else 0:.0f}%**",
-        "", "| Issue | State | Session | PR |", "|---|---|---|---|",
-    ]
-    for r in t:
-        lines.append(
-            f"| #{r['issue_number']} {r['issue_title'][:50]} | {r['state']} | "
-            f"[session]({r['session_url']}) | {r['pr_url'] or '—'} |")
-    return "\n".join(lines) + "\n"
-
-
-def _fmt_s(v):
-    return f"{v / 60:.1f}m" if v else "—"
-
-
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
     rows = ""
@@ -241,7 +176,7 @@ button:disabled{{opacity:.4;cursor:default}}
 <span class="meta">{settings.github_repo} · trigger <span class="label">{settings.trigger_label}</span></span>
 <button id="pollerbtn" onclick="togglePoller()" title="Toggle issue polling"></button>
 <span id="updated"></span>
-<nav class="links"><a href="/report">report</a><a href="/metrics">metrics</a><a href="/api/tasks">api</a></nav>
+<nav class="links"><a href="/api/tasks" target="_blank" rel="noopener">api</a></nav>
 </header>
 <div class="cards" id="stats"></div>
 <h2>Remediations</h2>
@@ -280,11 +215,16 @@ async function refresh() {{
     fetch('/api/poller').then(r => r.json()),
   ]);
   const bs = t.counts.by_state, bk = t.counts.by_kind;
+  const dur = s => s ? (s >= 3600 ? `${{(s / 3600).toFixed(1)}}h` : `${{(s / 60).toFixed(1)}}m`) : '—';
+  const opened = bk.pr_opened || 0, mergedN = bs.merged || 0;
   const cards = [
     ['issues', t.tasks.length],
-    ['prs opened', bk.pr_opened || 0],
-    ['merged', bs.merged || 0],
+    ['dispatched', bk.dispatched || 0],
+    ['prs opened', opened],
+    ['merged', mergedN],
     ['failed', bs.failed || 0],
+    ['merge rate', opened ? `${{Math.round(mergedN / opened * 100)}}%` : '—'],
+    ['avg to remediate', dur(t.counts.durations && t.counts.durations.avg_s)],
   ];
   document.getElementById('stats').innerHTML = cards.map(([l, n]) =>
     `<div class="card"><div class="n">${{n}}</div><div class="l">${{l}}</div></div>`).join('');

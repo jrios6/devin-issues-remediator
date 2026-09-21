@@ -37,9 +37,8 @@ Two real fixes made mid-flight:
 - `simulate_webhook.sh` originally posted stub issue bodies; now fetches the real issue via `gh api`, and `consider_issue` refetches canonical issue data regardless of payload fidelity.
 
 ## 6. Observability (Part 3)
-- `/` — live dashboard: per-issue state (queued/running/pr_opened/merged/failed), session link, PR link + PR state, event log.
-- `/metrics` — Prometheus counters: detected/dispatched/prs-opened/**merged**/failed + in-flight gauge + latency summary.
-- `/report` — markdown rollup for a leader: merge rate, avg time-to-remediate (measured ~10 min to PR), links.
+- `/` — live dashboard: stat cards (issues detected, sessions dispatched, PRs opened/merged/failed, merge rate, avg time-to-remediate), per-issue state (queued/running/pr_opened/merged/failed), session + PR links, PR state, and a paginated event log.
+- `/api/tasks` · `/api/events` — the JSON the dashboard polls; the same counters and latency figures are in `counts`.
 - Per-issue comment trail on GitHub = human-readable status updates.
 
 ## 7. Results

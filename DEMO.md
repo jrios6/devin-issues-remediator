@@ -26,10 +26,11 @@ Audience: VP of Engineering + senior ICs evaluating Devin.
 - Open one Devin session in the UI — show it running `pre-commit`, editing files.
 
 ## 3. Observability (60s)
-- Dashboard `/`: state per issue, session links, event log.
-- `/metrics`: dispatched/completed/failed counters + latency — "if I were an
+- Dashboard `/`: stat cards up top — issues, sessions dispatched, PRs opened,
+  merged, failed, merge rate, avg time-to-remediate — "if I were an
   engineering leader, this is my throughput + success rate."
-- `/report`: markdown rollup — success rate, avg time-to-PR, links.
+- Then the remediation table: per-issue state, session + PR links; and the
+  event log beneath (detected → dispatched → pr_opened).
 
 ## 4. Why Devin (30s)
 - A linter or dependabot can *detect* these issues; it can't *resolve* them.

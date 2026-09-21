@@ -44,9 +44,7 @@ issues are deduplicated — each issue is dispatched at most once.
 | Endpoint | What it answers |
 |---|---|
 | `GET /` | Live HTML dashboard: every remediation, its session, its PR, and a recent event log |
-| `GET /api/tasks` · `/api/events` | Same data as JSON |
-| `GET /metrics` | Prometheus counters: detected / dispatched / PRs / failures / in-flight / latency |
-| `GET /report` | Markdown rollup a leader can read: success rate, throughput, links |
+| `GET /api/tasks` · `/api/events` | Same data as JSON, including counters (dispatched / merged / failed) and remediation latency |
 | issue comments | Per-issue narrative: session dispatched → PR opened |
 
 ## Run it
