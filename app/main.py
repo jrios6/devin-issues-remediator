@@ -183,53 +183,93 @@ def dashboard():
     return f"""<!doctype html>
 <title>Devin Issue Remediator</title>
 <style>
-body{{font-family:system-ui,sans-serif;margin:2rem;background:#0f1117;color:#e6e6e6}}
-table{{border-collapse:collapse;width:100%;margin-bottom:2rem}}
-td,th{{border:1px solid #333;padding:.4rem .6rem;text-align:left;font-size:.9rem}}
-a{{color:#7aa2ff}} .running{{color:#fbbf24}} .succeeded{{color:#34d399}}
-.merged{{color:#34d399}} .pr_opened{{color:#a78bfa}}
-.failed{{color:#f87171}} .queued{{color:#9ca3af}} h1,h2{{font-weight:600}}
-#updated{{color:#9ca3af;font-size:.8rem}}
+*{{box-sizing:border-box}}
+body{{font-family:ui-sans-serif,system-ui,sans-serif;margin:0;background:#0b0d12;color:#dde1e8;font-size:14px}}
+main{{max-width:1100px;margin:0 auto;padding:1.2rem 1.4rem 2rem}}
+header{{display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap;border-bottom:1px solid #232733;padding-bottom:.7rem;margin-bottom:1rem}}
+h1{{font-size:1.05rem;font-weight:650;margin:0}}
+h2{{font-size:.8rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8b93a5;margin:1.4rem 0 .5rem}}
+.meta{{color:#8b93a5;font-size:.82rem}}
+.meta code{{background:#1a1e29;padding:.1rem .35rem;border-radius:4px}}
+a{{color:#7aa2ff;text-decoration:none}} a:hover{{text-decoration:underline}}
+header .links{{margin-left:auto;font-size:.82rem;display:flex;gap:.9rem;align-items:center}}
+.cards{{display:flex;gap:.6rem;flex-wrap:wrap}}
+.card{{background:#12151d;border:1px solid #232733;border-radius:8px;padding:.5rem .9rem;min-width:100px}}
+.card .n{{font-size:1.25rem;font-weight:650;line-height:1.1}}
+.card .l{{color:#8b93a5;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}}
+table{{border-collapse:collapse;width:100%;background:#12151d;border:1px solid #232733;border-radius:8px;overflow:hidden}}
+th{{background:#161a24;color:#8b93a5;font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;padding:.45rem .7rem;text-align:left}}
+td{{border-top:1px solid #232733;padding:.42rem .7rem;font-size:.86rem;vertical-align:top}}
+tbody tr:hover{{background:#181d29}}
+.pill{{display:inline-block;padding:.1rem .55rem;border-radius:999px;font-size:.75rem;font-weight:600}}
+.pill.queued{{background:#2a2f3c;color:#b8bfcd}}
+.pill.running{{background:#3a2e14;color:#fbbf24}}
+.pill.pr_opened{{background:#2a2140;color:#c4b5fd}}
+.pill.merged{{background:#123528;color:#4ade80}}
+.pill.failed{{background:#3b1a1a;color:#f87171}}
+.sub{{color:#8b93a5;font-size:.75rem}}
+button{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.2rem .6rem;font-size:.8rem;cursor:pointer}}
+button:hover{{background:#232938}}
+#updated{{color:#6b7280;font-size:.78rem}}
+.ev-msg{{font-family:ui-monospace,SFMono-Regular,monospace;font-size:.8rem;color:#b8bfcd}}
 </style>
-<h1>Devin Issue Remediator — {settings.github_repo}</h1>
-<p>Trigger label: <code>{settings.trigger_label}</code> ·
-Poller: <button id="pollerbtn" onclick="togglePoller()"></button> ·
-auto-updates every 10s <span id="updated"></span> ·
-<a href="/report">report</a> · <a href="/metrics">metrics</a> · <a href="/api/tasks">api</a></p>
+<main>
+<header>
+<h1>Devin Issue Remediator</h1>
+<span class="meta">{settings.github_repo} · trigger <code>{settings.trigger_label}</code></span>
+<button id="pollerbtn" onclick="togglePoller()"></button>
+<span id="updated"></span>
+<nav class="links"><a href="/report">report</a><a href="/metrics">metrics</a><a href="/api/tasks">api</a></nav>
+</header>
+<div class="cards" id="stats"></div>
 <h2>Remediations</h2>
 <table><thead><tr><th>Issue</th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
 <th>Detail</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
+</main>
 <script>
 const ago = ts => {{
   const s = Math.max(0, Math.floor(Date.now() / 1000 - ts));
   return s >= 60 ? `${{Math.floor(s / 60)}}m${{s % 60}}s ago` : `${{s}}s ago`;
 }};
 const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}})[c]);
+const pill = r => {{
+  const ps = r.pr_state ? ` <span class="sub">· ${{esc(r.pr_state)}}</span>` : '';
+  return `<span class="pill ${{r.state}}">${{esc(r.state)}}</span>${{ps}}`;
+}};
 async function refresh() {{
-  const [t, e] = await Promise.all([
+  const [t, e, p] = await Promise.all([
     fetch('/api/tasks').then(r => r.json()),
     fetch('/api/events?limit=20').then(r => r.json()),
+    fetch('/api/poller').then(r => r.json()),
   ]);
+  const bs = t.counts.by_state, bk = t.counts.by_kind;
+  const cards = [
+    ['issues', t.tasks.length],
+    ['prs opened', bk.pr_opened || 0],
+    ['merged', bs.merged || 0],
+    ['failed', bs.failed || 0],
+    ['in flight', (bs.queued||0) + (bs.running||0) + (bs.pr_opened||0)],
+  ];
+  document.getElementById('stats').innerHTML = cards.map(([l, n]) =>
+    `<div class="card"><div class="n">${{n}}</div><div class="l">${{l}}</div></div>`).join('');
   document.getElementById('taskrows').innerHTML = t.tasks.map(r => {{
     const sess = r.session_url ? `<a href="${{r.session_url}}">session</a>` : '—';
     const pr = r.pr_url ? `<a href="${{r.pr_url}}">PR</a>` : '—';
-    const ps = r.pr_state ? ` (${{r.pr_state}})` : '';
     return `<tr><td>#${{r.issue_number}}</td><td>${{esc(r.issue_title)}}</td>`
-      + `<td class="${{r.state}}">${{r.state}}${{ps}}</td><td>${{sess}}</td><td>${{pr}}</td>`
-      + `<td>${{esc(r.detail || '')}}</td><td>${{ago(r.created_at)}}</td></tr>`;
+      + `<td>${{pill(r)}}</td><td>${{sess}}</td><td>${{pr}}</td>`
+      + `<td class="sub">${{esc(r.detail || '')}}</td><td class="sub">${{ago(r.created_at)}}</td></tr>`;
   }}).join('') || '<tr><td colspan=7>No issues yet</td></tr>';
   document.getElementById('eventrows').innerHTML = e.events.map(ev =>
-    `<tr><td>${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
-    + `<td>${{ev.issue_number ? '#' + ev.issue_number : ''}}</td><td>${{esc(ev.message)}}</td></tr>`
+    `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
+    + `<td>${{ev.issue_number ? '#' + ev.issue_number : ''}}</td><td class="ev-msg">${{esc(ev.message)}}</td></tr>`
   ).join('') || '<tr><td colspan=4>No events yet</td></tr>';
-  const p = await fetch('/api/poller').then(r => r.json());
   document.getElementById('pollerbtn').textContent =
-    p.enabled ? `on (every ${{p.interval_seconds}}s) — click to stop` : 'off — click to start';
+    p.enabled ? `poller: on · ${{p.interval_seconds}}s` : 'poller: off';
   document.getElementById('updated').textContent =
-    '· updated ' + new Date().toLocaleTimeString();
+    'updated ' + new Date().toLocaleTimeString();
 }}
 async function togglePoller() {{
   const cur = await fetch('/api/poller').then(r => r.json());
