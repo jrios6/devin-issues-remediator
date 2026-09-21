@@ -8,7 +8,7 @@ Step-by-step account of what was done for this assignment.
 - Flagged that forks ship with Issues disabled; user enabled the feature, after which issues were filed.
 
 ## 2. Issue selection (Part 1)
-Searched the Superset codebase for real, verifiable problems that match the repo's own stated standards (AGENTS.md / Cursor rules), and filed 5 GitHub issues, each with scope + acceptance criteria — a mix of maintenance items and one genuine behavioral defect:
+Searched the Superset codebase for real, verifiable problems that match the repo's own stated standards (AGENTS.md / Cursor rules), and filed 5 GitHub issues, each with scope, acceptance criteria, and a cited **rule source** (the repo doc/standard being enforced — `AGENTS.md`, PEP 8, or the `naive_utcnow` contract) — a mix of maintenance items and one genuine behavioral defect:
 - **#1** — legacy `Dict`/`Optional`/`Union` generics in `superset/utils/json.py`
 - **#2** — `any` types in `superset-frontend/src/utils/localStorageHelpers.ts` and `fetchOptions.ts` (violates the repo's own no-`any` standard)
 - **#3** — `len(...) == 0 / > 0` truthiness violations in `pandas_postprocessing` + `slackv2.py`
