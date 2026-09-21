@@ -232,7 +232,7 @@ button:focus-visible,select:focus-visible,input:focus-visible{{outline:1px solid
 <div id="cfgpanel">
   <div class="cfghead">
     <div><div class="cfgtitle">Runtime settings</div>
-    <div class="cfgsub">apply to the next dispatched session · reset on restart</div></div>
+    <div class="cfgsub">apply to the next dispatched session</div></div>
     <button class="x" onclick="toggleCfg()" title="Close">×</button>
   </div>
   <div class="cfgrow"><span>agent mode</span><select id="cfg-mode"></select></div>
