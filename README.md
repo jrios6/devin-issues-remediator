@@ -5,35 +5,68 @@ Event-driven GitHub-issue remediation powered by the Devin API.
 When an issue in the target repo (`jrios6/superset`) is labeled **`devin-fix`**, this
 service dispatches a Devin session to implement the fix, tracks the session to
 completion, and reports back on the issue — labeling it and commenting with the
-resulting pull request. **`devin-done` means merged**: issues are labeled
-`devin-pr-opened` while the PR awaits human review and only flip to `devin-done`
-when the PR actually merges (a closed-unmerged PR → `devin-failed`).
+resulting pull request.
+
+## Workflow labels
+
+| Label | Meaning |
+|---|---|
+| `devin-fix` | Trigger: queue this issue for autonomous remediation. |
+| `devin-in-progress` | A Devin session has been created and is working on the issue. |
+| `devin-pr-opened` | Devin opened a remediation PR that is awaiting review or merge. |
+| `devin-done` | Terminal success: the remediation PR was merged. |
+| `devin-failed` | Terminal failure: the session ended without a PR, or its PR closed without merging. |
+
+The normal transition is `devin-fix` → `devin-in-progress` →
+`devin-pr-opened` → `devin-done`. A failed session or closed-unmerged PR
+transitions to `devin-failed` instead.
 
 ## Architecture
 
-```
-GitHub issue labeled "devin-fix"
-        │
-        ├──► POST /webhooks/github   (real-time; HMAC-SHA256 verified
-        │                             when GITHUB_WEBHOOK_SECRET is set)
-        └──► background poller       (POLL_INTERVAL_SECONDS — works with no public URL)
-                        │
-                        ▼
-              POST /v3/organizations/{org}/sessions      (Devin API)
-              prompt = issue title + body + acceptance criteria
-              repos = ["jrios6/superset"], structured_output_schema enforced
-                        │
-                        ▼
-              background tracker polls GET /v3/.../sessions/{id}
-                        │
-            ┌───────────┴────────────┐
-            ▼                        ▼
-      PR opened                  failed / suspended
-      label → devin-pr-opened    label → devin-failed
-      comment with PR link       comment with session link
-            │
-            ▼ (PR watcher polls GitHub for merge state)
-      merged → devin-done     closed unmerged → devin-failed
+```text
+                         GitHub issue
+                      label: devin-fix
+                              |
+                 +------------+------------+
+                 |                         |
+                 v                         v
+          GitHub webhook          Periodic label poller
+                 |                         |
+                 +------------+------------+
+                              |
+                              v
+                    Validate and refetch
+                              |
+                              v
+                  SQLite dedupe + event log --------> Dashboard
+                              |
+                              v
+                    Build scoped prompt
+                    Create Devin session
+                              |
+                              v
+                    Devin implements
+                    tests, and opens PR
+                              |
+                              v
+                    Track session and PR
+                              |
+                  +-----------+-----------+
+                  |                       |
+               PR opened                No PR
+                  |                       |
+                  v                       v
+       label: devin-pr-opened    label: devin-failed
+                  |
+                  v
+              PR outcome
+                  |
+          +-------+-------+
+          |               |
+       Merged           Closed
+          |               |
+          v               v
+ label: devin-done  label: devin-failed
 ```
 
 State lives in SQLite (`/data/remediator.db`), so restarts are safe and
@@ -47,10 +80,101 @@ issues are deduplicated — each issue is dispatched at most once.
 | `GET /api/tasks` · `/api/events` | Same data as JSON, including per-PR CI status, size (+/−), ACUs consumed + Devin mode, and aggregate totals / time-to-PR |
 | issue comments | Per-issue narrative: session dispatched → PR opened |
 
+## Credentials and initial setup
+
+The service needs two credentials and, when using the webhook trigger, one
+shared secret:
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `DEVIN_API_KEY` | Yes | `cog_...` service-user key used to create and inspect Devin sessions. |
+| `DEVIN_ORG_ID` | Yes | Organization identifier used in the Devin v3 API URL; this is not a secret. |
+| `GITHUB_TOKEN` | Yes | Fine-grained GitHub PAT used to read issues and PRs and to update issue labels/comments. |
+| `GITHUB_WEBHOOK_SECRET` | Webhook only | Shared random value used to verify GitHub webhook signatures. It can be omitted when using only the poller locally. |
+
+### 1. Connect the repository to Devin
+
+Ensure the Devin GitHub integration has access to `jrios6/superset`. Devin must
+be able to clone that repository, push branches, and open pull requests before
+sessions created by this service can remediate its issues.
+
+### 2. Create the Devin service-user key
+
+1. In Devin, open **Settings → Devin API → Service users**.
+2. Select **Provision service user**, give it a descriptive name, and assign the
+   **Member** role. Member access is sufficient to create and manage sessions.
+3. Copy the API key immediately; it starts with `cog_` and is shown only once.
+4. Copy the organization ID shown at the top of the same **Devin API** page.
+
+See Devin's official [authentication guide](https://docs.devin.ai/api-reference/authentication)
+and [Teams quick start](https://docs.devin.ai/api-reference/getting-started/teams-quickstart).
+
+### 3. Create the GitHub token
+
+Create a [fine-grained personal access token](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
+restricted to `jrios6/superset` with these repository permissions:
+
+- **Issues: Read and write** — fetch issues, add/remove labels, and post comments.
+- **Pull requests: Read-only** — track whether a remediation PR is open, merged,
+  or closed.
+- **Metadata: Read-only** — granted automatically by GitHub.
+
+The Devin GitHub integration, not this token, supplies the code access Devin
+uses to create branches and pull requests.
+
+### 4. Configure the environment
+
+Copy the template, then replace every placeholder in `.env`:
+
+```bash
+cp .env.example .env
+```
+
+```dotenv
+DEVIN_API_KEY=cog_replace_me
+DEVIN_ORG_ID=replace_me
+GITHUB_TOKEN=github_pat_replace_me
+GITHUB_REPO=jrios6/superset
+```
+
+The `.env` file is ignored by Git. Never commit or paste real credentials into
+issues, logs, or screenshots.
+
+### 5. Create the workflow labels
+
+These labels already exist in `jrios6/superset`. When configuring a different
+target repository, create them once before starting the service:
+
+```bash
+gh label create devin-fix --repo jrios6/superset --color 0E8A16 --description "Queued for autonomous remediation" --force
+gh label create devin-in-progress --repo jrios6/superset --color FBCA04 --description "Devin session in progress" --force
+gh label create devin-pr-opened --repo jrios6/superset --color 6F42C1 --description "Remediation PR awaiting review" --force
+gh label create devin-done --repo jrios6/superset --color 1D76DB --description "Remediation PR merged" --force
+gh label create devin-failed --repo jrios6/superset --color D73A4A --description "Remediation failed or PR closed unmerged" --force
+```
+
+### 6. Optional: configure the webhook
+
+Generate a secret:
+
+```bash
+openssl rand -hex 32
+```
+
+Copy the result into `GITHUB_WEBHOOK_SECRET` in `.env`. In the target GitHub
+repository, open **Settings → Webhooks → Add webhook** and configure:
+
+- Payload URL: `https://<your-host>/webhooks/github`
+- Content type: `application/json`
+- Secret: the same generated value
+- Events: **Issues**
+
+For a local demo without a public URL, leave `GITHUB_WEBHOOK_SECRET` blank and
+keep `POLL_INTERVAL_SECONDS` greater than zero.
+
 ## Run it
 
 ```bash
-cp .env.example .env   # fill in DEVIN_API_KEY, DEVIN_ORG_ID, GITHUB_TOKEN
 docker compose up --build
 ```
 
