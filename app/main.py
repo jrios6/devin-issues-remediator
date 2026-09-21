@@ -278,7 +278,6 @@ async function refresh() {{
     ['prs opened', bk.pr_opened || 0],
     ['merged', bs.merged || 0],
     ['failed', bs.failed || 0],
-    ['in flight', (bs.queued||0) + (bs.running||0) + (bs.pr_opened||0)],
   ];
   document.getElementById('stats').innerHTML = cards.map(([l, n]) =>
     `<div class="card"><div class="n">${{n}}</div><div class="l">${{l}}</div></div>`).join('');
