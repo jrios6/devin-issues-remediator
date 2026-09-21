@@ -86,6 +86,21 @@ def events(limit: int = 50):
     return {"events": store.recent_events(limit)}
 
 
+@app.get("/api/poller")
+def poller_state():
+    return {"enabled": dispatcher.poller_enabled,
+            "interval_seconds": dispatcher.poller_interval}
+
+
+@app.post("/api/poller")
+async def set_poller(request: Request):
+    body = await request.json()
+    enabled = bool(body.get("enabled"))
+    dispatcher.set_poller(enabled)
+    store.event("config", None, f"poller {'enabled' if enabled else 'disabled'}")
+    return poller_state()
+
+
 @app.get("/metrics", response_class=PlainTextResponse)
 def metrics():
     c = store.counts()
@@ -178,7 +193,7 @@ a{{color:#7aa2ff}} .running{{color:#fbbf24}} .succeeded{{color:#34d399}}
 </style>
 <h1>Devin Issue Remediator — {settings.github_repo}</h1>
 <p>Trigger label: <code>{settings.trigger_label}</code> ·
-Poller: {"every " + str(settings.poll_interval_seconds) + "s" if settings.poll_interval_seconds else "off"} ·
+Poller: <button id="pollerbtn" onclick="togglePoller()"></button> ·
 auto-updates every 10s <span id="updated"></span> ·
 <a href="/report">report</a> · <a href="/metrics">metrics</a> · <a href="/api/tasks">api</a></p>
 <h2>Remediations</h2>
@@ -210,8 +225,20 @@ async function refresh() {{
     `<tr><td>${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
     + `<td>${{ev.issue_number ? '#' + ev.issue_number : ''}}</td><td>${{esc(ev.message)}}</td></tr>`
   ).join('') || '<tr><td colspan=4>No events yet</td></tr>';
+  const p = await fetch('/api/poller').then(r => r.json());
+  document.getElementById('pollerbtn').textContent =
+    p.enabled ? `on (every ${{p.interval_seconds}}s) — click to stop` : 'off — click to start';
   document.getElementById('updated').textContent =
     '· updated ' + new Date().toLocaleTimeString();
+}}
+async function togglePoller() {{
+  const cur = await fetch('/api/poller').then(r => r.json());
+  await fetch('/api/poller', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{enabled: !cur.enabled}}),
+  }});
+  refresh();
 }}
 refresh();
 setInterval(refresh, 10000);

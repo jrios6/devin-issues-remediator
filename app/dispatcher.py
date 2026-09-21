@@ -52,6 +52,8 @@ class Dispatcher:
         self.devin = DevinClient(settings.devin_api_key, settings.devin_org_id,
                                  settings.devin_api_base)
         self._stop = threading.Event()
+        self.poller_enabled = settings.poll_interval_seconds > 0
+        self.poller_interval = settings.poll_interval_seconds or 60
 
     # ---------- event intake ----------
 
@@ -174,13 +176,23 @@ class Dispatcher:
             self._stop.wait(interval)
 
     def start(self):
-        if self.s.poll_interval_seconds > 0:
-            threading.Thread(target=self._loop, daemon=True, name="issue-poller",
-                             args=(self.poll_issues_once,
-                                   self.s.poll_interval_seconds, "poller")).start()
+        threading.Thread(target=self._poll_loop, daemon=True,
+                         name="issue-poller").start()
         threading.Thread(target=self._loop, daemon=True, name="session-tracker",
                          args=(self.track_once,
                                self.s.track_interval_seconds, "tracker")).start()
+
+    def set_poller(self, enabled: bool):
+        self.poller_enabled = enabled
+
+    def _poll_loop(self):
+        while not self._stop.is_set():
+            if self.poller_enabled:
+                try:
+                    self.poll_issues_once()
+                except Exception:  # noqa: BLE001
+                    log.exception("issue poll failed")
+            self._stop.wait(self.poller_interval)
 
     def stop(self):
         self._stop.set()
