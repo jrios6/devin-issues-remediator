@@ -166,6 +166,14 @@ tbody tr:hover{{background:#181d29}}
 .num{{font-variant-numeric:tabular-nums}}
 button{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.2rem .6rem;font-size:.8rem;cursor:pointer}}
 button:hover{{background:#232938}}
+.tblhead{{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap}}
+.tblhead h2{{margin-bottom:0}}
+.filters{{display:flex;gap:.4rem;flex-wrap:wrap;margin:.4rem 0 .5rem}}
+.fbtn{{background:#12151d;border:1px solid #232733;border-radius:999px;padding:.15rem .65rem;font-size:.75rem;color:#8b93a5}}
+.fbtn:hover{{color:#dde1e8}}
+.fbtn.on{{background:#1f6feb33;color:#7aa2ff;border-color:#1f6feb66}}
+th.sortable{{cursor:pointer;user-select:none}}
+th.sortable:hover{{color:#dde1e8}}
 #pollerbtn{{display:inline-flex;align-items:center;gap:.4rem;background:#1c2230;border:1px solid #39455c;box-shadow:0 1px 0 #0006;padding:.22rem .7rem;font-weight:600}}
 #pollerbtn:hover{{background:#263042;border-color:#4d5b76}}
 #pollerbtn:active{{transform:translateY(1px)}}
@@ -187,9 +195,14 @@ button:disabled{{opacity:.4;cursor:default}}
 <nav class="links"><a href="/api/tasks" target="_blank" rel="noopener">api</a></nav>
 </header>
 <div class="cards" id="stats"></div>
-<h2>Remediations</h2>
-<table><thead><tr><th>Issue</th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
+<div class="tblhead"><h2>Remediations</h2><div class="filters" id="statefilters"></div></div>
+<table><thead><tr><th id="issueth" class="sortable" onclick="toggleSort()">Issue <span id="sortarrow">↓</span></th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
 <th>CI</th><th>Size</th><th>ACUs</th><th>Progress</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
+<div class="pager">
+<button id="tprev" onclick="tpage(-1)">‹ prev</button>
+<span id="tpageinfo" class="sub"></span>
+<button id="tnext" onclick="tpage(1)">next ›</button>
+</div>
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
@@ -244,7 +257,24 @@ async function refresh() {{
     if (r.state === 'merged') return 'PR merged';
     return {{waiting_for_user: 'working', working: 'working'}}[r.detail] || (r.detail || '');
   }};
-  document.getElementById('taskrows').innerHTML = t.tasks.map(r => {{
+  const seen = new Set(t.tasks.map(r => r.state));
+  const sf = document.getElementById('statefilters');
+  if (sf.dataset.k !== [...seen].sort().join(',')) {{
+    sf.dataset.k = [...seen].sort().join(',');
+    stateFilter = stateFilter === 'all' || seen.has(stateFilter) ? stateFilter : 'all';
+    sf.innerHTML = ['all', ...[...seen].sort()].map(s =>
+      `<button class="fbtn${{s === stateFilter ? ' on' : ''}}" onclick="setFilter('${{s}}')">${{s}}</button>`).join('');
+  }} else {{
+    sf.querySelectorAll('.fbtn').forEach(b =>
+      b.classList.toggle('on', b.textContent === stateFilter));
+  }}
+  const rows = t.tasks
+    .filter(r => stateFilter === 'all' || r.state === stateFilter)
+    .sort((a, b) => sortAsc ? a.issue_number - b.issue_number : b.issue_number - a.issue_number);
+  const ttotal = rows.length;
+  taskOffset = Math.min(taskOffset, Math.max(0, Math.ceil(ttotal / TPAGE) - 1) * TPAGE);
+  document.getElementById('sortarrow').textContent = sortAsc ? '↑' : '↓';
+  document.getElementById('taskrows').innerHTML = rows.slice(taskOffset, taskOffset + TPAGE).map(r => {{
     const iss = `<a href="${{ISSUE_BASE + r.issue_number}}" target="_blank" rel="noopener">#${{r.issue_number}}</a>`;
     const sess = r.session_url
       ? `<a href="${{r.session_url}}" target="_blank" rel="noopener">session</a>` : '—';
@@ -261,6 +291,11 @@ async function refresh() {{
       + `<td class="num">${{size}}</td><td class="num">${{acus}}</td>`
       + `<td class="sub">${{esc(st(r))}}</td><td class="sub">${{ago(r.created_at)}}</td></tr>`;
   }}).join('') || '<tr><td colspan=10>No issues yet</td></tr>';
+  const tfrom = ttotal ? taskOffset + 1 : 0;
+  document.getElementById('tpageinfo').textContent =
+    `${{tfrom}}–${{Math.min(taskOffset + TPAGE, ttotal)}} of ${{ttotal}}`;
+  document.getElementById('tprev').disabled = taskOffset === 0;
+  document.getElementById('tnext').disabled = taskOffset + TPAGE >= ttotal;
   document.getElementById('eventrows').innerHTML = e.events.map(ev =>
     `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
     + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
@@ -279,6 +314,14 @@ async function refresh() {{
     : 'polling paused <span class="hint">· start</span>');
   lastUpdate = Date.now() / 1000;
   tickUpdated();
+}}
+const TPAGE = 10;
+let taskOffset = 0, sortAsc = false, stateFilter = 'all';
+function setFilter(s) {{ stateFilter = s; taskOffset = 0; refresh(); }}
+function toggleSort() {{ sortAsc = !sortAsc; taskOffset = 0; refresh(); }}
+async function tpage(d) {{
+  taskOffset = Math.max(0, taskOffset + d * TPAGE);
+  await refresh();
 }}
 let lastUpdate = Date.now() / 1000;
 function tickUpdated() {{
