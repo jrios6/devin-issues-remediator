@@ -169,17 +169,29 @@ def dashboard():
     rows = ""
     for r in store.all():
         age = _ago(r["created_at"])
-        sess = f'<a href="{r["session_url"]}">session</a>' if r["session_url"] else "—"
-        pr = f'<a href="{r["pr_url"]}">PR</a>' if r["pr_url"] else "—"
+        issue = (f'<a href="https://github.com/{settings.github_repo}/issues/{r["issue_number"]}"'
+                 f' target="_blank" rel="noopener">#{r["issue_number"]}</a>')
+        sess = (f'<a href="{r["session_url"]}" target="_blank" rel="noopener">session</a>'
+                if r["session_url"] else "—")
+        pr = (f'<a href="{r["pr_url"]}" target="_blank" rel="noopener">PR</a>'
+              if r["pr_url"] else "—")
         pr_state = f" ({r['pr_state']})" if r.get("pr_state") else ""
-        rows += (f"<tr><td>#{r['issue_number']}</td><td>{html.escape(r['issue_title'])}</td>"
+        detail = str(r.get("detail") or "")
+        if r.get("pr_url"):
+            detail = {"waiting_for_user": "watching PR", "working": "updating PR"}.get(detail, detail)
+        rows += (f"<tr><td>{issue}</td><td>{html.escape(r['issue_title'])}</td>"
                  f"<td class='{r['state']}'>{r['state']}{pr_state}</td>"
-                 f"<td>{sess}</td><td>{pr}</td><td>{html.escape(str(r.get('detail') or ''))}</td>"
+                 f"<td>{sess}</td><td>{pr}</td><td>{html.escape(detail)}</td>"
                  f"<td>{age}</td></tr>")
-    evs = "".join(
-        f"<tr><td>{_ago(e['ts'])}</td><td>{e['kind']}</td>"
-        f"<td>#{e['issue_number'] or ''}</td><td>{html.escape(str(e['message']))}</td></tr>"
-        for e in store.recent_events(20))
+    evs = ""
+    for e in store.recent_events(20):
+        issue = ""
+        if e["issue_number"]:
+            issue = (f'<a href="https://github.com/{settings.github_repo}'
+                     f'/issues/{e["issue_number"]}" target="_blank" rel="noopener">'
+                     f'#{e["issue_number"]}</a>')
+        evs += (f"<tr><td>{_ago(e['ts'])}</td><td>{e['kind']}</td>"
+                f"<td>{issue}</td><td>{html.escape(str(e['message']))}</td></tr>")
     return f"""<!doctype html>
 <title>Devin Issue Remediator</title>
 <style>
@@ -224,7 +236,7 @@ button:hover{{background:#232938}}
 <div class="cards" id="stats"></div>
 <h2>Remediations</h2>
 <table><thead><tr><th>Issue</th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
-<th>Detail</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
+<th>Session status</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
@@ -236,6 +248,7 @@ const ago = ts => {{
   if (s >= 3600) return `${{Math.floor(s / 3600)}}h ${{Math.floor(s % 3600 / 60)}}m ago`;
   return s >= 60 ? `${{Math.floor(s / 60)}}m ago` : `${{s}}s ago`;
 }};
+const ISSUE_BASE = 'https://github.com/{settings.github_repo}/issues/';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}})[c]);
 const pill = r => {{
   const ps = r.pr_state ? ` <span class="sub">· ${{esc(r.pr_state)}}</span>` : '';
@@ -257,16 +270,25 @@ async function refresh() {{
   ];
   document.getElementById('stats').innerHTML = cards.map(([l, n]) =>
     `<div class="card"><div class="n">${{n}}</div><div class="l">${{l}}</div></div>`).join('');
+  const st = r => {{
+    const d = r.detail || '';
+    if (r.pr_url) return {{waiting_for_user: 'watching PR', working: 'updating PR'}}[d] || d;
+    return d;
+  }};
   document.getElementById('taskrows').innerHTML = t.tasks.map(r => {{
-    const sess = r.session_url ? `<a href="${{r.session_url}}">session</a>` : '—';
-    const pr = r.pr_url ? `<a href="${{r.pr_url}}">PR</a>` : '—';
-    return `<tr><td>#${{r.issue_number}}</td><td>${{esc(r.issue_title)}}</td>`
+    const iss = `<a href="${{ISSUE_BASE + r.issue_number}}" target="_blank" rel="noopener">#${{r.issue_number}}</a>`;
+    const sess = r.session_url
+      ? `<a href="${{r.session_url}}" target="_blank" rel="noopener">session</a>` : '—';
+    const pr = r.pr_url
+      ? `<a href="${{r.pr_url}}" target="_blank" rel="noopener">PR</a>` : '—';
+    return `<tr><td>${{iss}}</td><td>${{esc(r.issue_title)}}</td>`
       + `<td>${{pill(r)}}</td><td>${{sess}}</td><td>${{pr}}</td>`
-      + `<td class="sub">${{esc(r.detail || '')}}</td><td class="sub">${{ago(r.created_at)}}</td></tr>`;
+      + `<td class="sub">${{esc(st(r))}}</td><td class="sub">${{ago(r.created_at)}}</td></tr>`;
   }}).join('') || '<tr><td colspan=7>No issues yet</td></tr>';
   document.getElementById('eventrows').innerHTML = e.events.map(ev =>
     `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
-    + `<td>${{ev.issue_number ? '#' + ev.issue_number : ''}}</td><td class="ev-msg">${{esc(ev.message)}}</td></tr>`
+    + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
+    + `<td class="ev-msg">${{esc(ev.message)}}</td></tr>`
   ).join('') || '<tr><td colspan=4>No events yet</td></tr>';
   document.getElementById('pollerbtn').textContent =
     p.enabled ? `poller: on · ${{p.interval_seconds}}s` : 'poller: off';
