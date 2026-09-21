@@ -311,8 +311,12 @@ async function refresh() {{
   document.getElementById('next').disabled = offset + e.events.length >= e.total;
   document.getElementById('pollerbtn').textContent =
     p.enabled ? `poller: on · ${{p.interval_seconds}}s` : 'poller: off';
-  document.getElementById('updated').textContent =
-    'updated ' + new Date().toLocaleTimeString();
+  lastUpdate = Date.now() / 1000;
+  tickUpdated();
+}}
+let lastUpdate = Date.now() / 1000;
+function tickUpdated() {{
+  document.getElementById('updated').textContent = 'updated ' + ago(lastUpdate);
 }}
 function page(d) {{
   offset = Math.max(0, offset + d * PAGE);
@@ -329,6 +333,7 @@ async function togglePoller() {{
 }}
 refresh();
 setInterval(refresh, 10000);
+setInterval(tickUpdated, 1000);
 </script>"""
 
 
