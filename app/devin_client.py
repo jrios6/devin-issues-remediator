@@ -33,7 +33,3 @@ class DevinClient:
         resp = self._c.get(f"/sessions/{session_id}")
         resp.raise_for_status()
         return resp.json()  # {status, status_detail, pull_requests[], url, structured_output, ...}
-
-    def send_message(self, session_id: str, message: str):
-        resp = self._c.post(f"/sessions/{session_id}/messages", json={"message": message})
-        resp.raise_for_status()
