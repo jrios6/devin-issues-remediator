@@ -223,6 +223,12 @@ tbody tr:hover{{background:#181d29}}
 .sub{{color:#8b93a5;font-size:.75rem}}
 button{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.2rem .6rem;font-size:.8rem;cursor:pointer}}
 button:hover{{background:#232938}}
+#pollerbtn{{display:inline-flex;align-items:center;gap:.4rem;background:#1c2230;border:1px solid #39455c;box-shadow:0 1px 0 #0006;padding:.22rem .7rem;font-weight:600}}
+#pollerbtn:hover{{background:#263042;border-color:#4d5b76}}
+#pollerbtn:active{{transform:translateY(1px)}}
+#pollerbtn .dot{{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px #4ade8099}}
+#pollerbtn.off .dot{{background:#6b7280;box-shadow:none}}
+#pollerbtn .hint{{color:#8b93a5;font-weight:400}}
 #updated{{color:#6b7280;font-size:.78rem}}
 .ev-msg{{font-family:ui-monospace,SFMono-Regular,monospace;font-size:.8rem;color:#b8bfcd}}
 .pager{{display:flex;align-items:center;gap:.7rem;margin-top:.6rem}}
@@ -233,7 +239,7 @@ button:disabled{{opacity:.4;cursor:default}}
 <header>
 <h1>Devin Issue Remediator</h1>
 <span class="meta">{settings.github_repo} · trigger <span class="label">{settings.trigger_label}</span></span>
-<button id="pollerbtn" onclick="togglePoller()"></button>
+<button id="pollerbtn" onclick="togglePoller()" title="Toggle issue polling"></button>
 <span id="updated"></span>
 <nav class="links"><a href="/report">report</a><a href="/metrics">metrics</a><a href="/api/tasks">api</a></nav>
 </header>
@@ -310,8 +316,11 @@ async function refresh() {{
     `${{from}}–${{offset + e.events.length}} of ${{e.total}}`;
   document.getElementById('prev').disabled = offset === 0;
   document.getElementById('next').disabled = offset + e.events.length >= e.total;
-  document.getElementById('pollerbtn').textContent =
-    p.enabled ? `poller: on · ${{p.interval_seconds}}s` : 'poller: off';
+  const pb = document.getElementById('pollerbtn');
+  pb.className = p.enabled ? '' : 'off';
+  pb.innerHTML = '<span class="dot"></span>' + (p.enabled
+    ? `polling every ${{p.interval_seconds}}s <span class="hint">· pause</span>`
+    : 'polling paused <span class="hint">· start</span>');
   lastUpdate = Date.now() / 1000;
   tickUpdated();
 }}
