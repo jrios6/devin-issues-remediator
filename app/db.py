@@ -16,7 +16,14 @@ CREATE TABLE IF NOT EXISTS remediations (
     detail         TEXT,
     created_at     REAL NOT NULL,
     dispatched_at  REAL,
-    completed_at   REAL
+    completed_at   REAL,
+    acus           REAL,                    -- ACUs consumed by the session so far
+    devin_mode     TEXT,
+    pr_additions   INTEGER,
+    pr_deletions   INTEGER,
+    pr_files       INTEGER,
+    pr_checks      TEXT,                    -- passing | failing | pending
+    pr_comments    INTEGER
 );
 CREATE TABLE IF NOT EXISTS events (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,8 +42,11 @@ class Store:
         with self._conn() as c:
             c.executescript(SCHEMA)
             cols = {r["name"] for r in c.execute("PRAGMA table_info(remediations)")}
-            if "pr_state" not in cols:
-                c.execute("ALTER TABLE remediations ADD COLUMN pr_state TEXT")
+            for col, typ in ("pr_state", "TEXT"), ("acus", "REAL"), ("devin_mode", "TEXT"), \
+                    ("pr_additions", "INTEGER"), ("pr_deletions", "INTEGER"), \
+                    ("pr_files", "INTEGER"), ("pr_checks", "TEXT"), ("pr_comments", "INTEGER"):
+                if col not in cols:
+                    c.execute(f"ALTER TABLE remediations ADD COLUMN {col} {typ}")
 
     @contextmanager
     def _conn(self):
@@ -102,6 +112,16 @@ class Store:
                 c.execute("UPDATE remediations SET pr_state=?, detail=? WHERE issue_number=?",
                           (pr_state, detail, issue_number))
 
+    def update_metrics(self, issue_number: int, **fields):
+        """Refresh session/PR metrics (acus, devin_mode, pr_* stats)."""
+        fields = {k: v for k, v in fields.items() if v is not None}
+        if not fields:
+            return
+        sets = ", ".join(f"{k}=?" for k in fields)
+        with self._lock, self._conn() as c:
+            c.execute(f"UPDATE remediations SET {sets} WHERE issue_number=?",
+                      (*fields.values(), issue_number))
+
     def active(self) -> list[dict]:
         """Work still needing attention: sessions in flight, plus open PRs awaiting merge."""
         with self._conn() as c:
@@ -139,10 +159,12 @@ class Store:
                 " MAX(completed_at - dispatched_at) max_s"
                 " FROM remediations WHERE completed_at IS NOT NULL AND dispatched_at IS NOT NULL"
             ).fetchone()
-            pickup = c.execute(
-                "SELECT AVG(dispatched_at - created_at) avg_s"
-                " FROM remediations WHERE dispatched_at IS NOT NULL"
-            ).fetchone()
+            totals = c.execute(
+                "SELECT COALESCE(SUM(acus),0) acus, COALESCE(SUM(pr_additions),0) additions,"
+                " COALESCE(SUM(pr_deletions),0) deletions, COALESCE(SUM(pr_files),0) files,"
+                " SUM(CASE WHEN pr_checks='passing' THEN 1 ELSE 0 END) ci_passing,"
+                " SUM(CASE WHEN pr_checks='failing' THEN 1 ELSE 0 END) ci_failing"
+                " FROM remediations").fetchone()
             return {"by_state": by_state, "by_kind": by_kind,
                     "durations": dict(dur) if dur else {},
-                    "pickup": dict(pickup) if pickup else {}}
+                    "totals": dict(totals)}

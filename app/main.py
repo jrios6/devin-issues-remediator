@@ -115,10 +115,14 @@ def dashboard():
               if r["pr_url"] else "—")
         pr_state = f" ({r['pr_state']})" if r.get("pr_state") else ""
         detail = _progress(r)
+        ci = r.get("pr_checks") or "—"
+        size = (f"+{r['pr_additions']} −{r['pr_deletions']} · {r['pr_files']} files"
+                if r.get("pr_additions") is not None else "—")
+        acus = f"{r['acus']:.2f}" if r.get("acus") is not None else "—"
         rows += (f"<tr><td>{issue}</td><td>{html.escape(r['issue_title'])}</td>"
                  f"<td class='{r['state']}'>{r['state']}{pr_state}</td>"
-                 f"<td>{sess}</td><td>{pr}</td><td>{html.escape(detail)}</td>"
-                 f"<td>{age}</td></tr>")
+                 f"<td>{sess}</td><td>{pr}</td><td>{ci}</td><td>{size}</td><td>{acus}</td>"
+                 f"<td>{html.escape(detail)}</td><td>{age}</td></tr>")
     evs = ""
     for e in store.recent_events(15):
         issue = ""
@@ -156,6 +160,10 @@ tbody tr:hover{{background:#181d29}}
 .pill.merged{{background:#123528;color:#4ade80}}
 .pill.failed{{background:#3b1a1a;color:#f87171}}
 .sub{{color:#8b93a5;font-size:.75rem}}
+.ci{{display:inline-block;padding:.05rem .45rem;border-radius:999px;font-size:.72rem;font-weight:600}}
+.ci.passing{{background:#123528;color:#4ade80}} .ci.failing{{background:#3b1a1a;color:#f87171}} .ci.pending{{background:#3a2e14;color:#fbbf24}}
+.add{{color:#4ade80}} .del{{color:#f87171}}
+.num{{font-variant-numeric:tabular-nums}}
 button{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.2rem .6rem;font-size:.8rem;cursor:pointer}}
 button:hover{{background:#232938}}
 #pollerbtn{{display:inline-flex;align-items:center;gap:.4rem;background:#1c2230;border:1px solid #39455c;box-shadow:0 1px 0 #0006;padding:.22rem .7rem;font-weight:600}}
@@ -181,7 +189,7 @@ button:disabled{{opacity:.4;cursor:default}}
 <div class="cards" id="stats"></div>
 <h2>Remediations</h2>
 <table><thead><tr><th>Issue</th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
-<th>Progress</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
+<th>CI</th><th>Size</th><th>ACUs</th><th>Progress</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
@@ -214,16 +222,18 @@ async function refresh() {{
     fetch(`/api/events?limit=${{PAGE}}&offset=${{offset}}`).then(r => r.json()),
     fetch('/api/poller').then(r => r.json()),
   ]);
-  const bs = t.counts.by_state, bk = t.counts.by_kind;
-  const dur = s => s == null ? '—' : (s >= 3600 ? `${{(s / 3600).toFixed(1)}}h` : s >= 60 ? `${{(s / 60).toFixed(1)}}m` : `${{Math.round(s)}}s`);
+  const bs = t.counts.by_state, bk = t.counts.by_kind, tot = t.counts.totals || {{}};
+  const dur = s => s == null ? '—' : (s >= 3600 ? `${{(s / 3600).toFixed(1)}}h` : `${{(s / 60).toFixed(1)}}m`);
   const opened = bk.pr_opened || 0, mergedN = bs.merged || 0;
   const cards = [
     ['issues', t.tasks.length],
     ['PRs opened', opened],
     ['merged', mergedN],
     ['failed', bs.failed || 0],
-    ['pickup', dur(t.counts.pickup && t.counts.pickup.avg_s)],
-    ['avg time', dur(t.counts.durations && t.counts.durations.avg_s)],
+    ['CI green', `${{tot.ci_passing || 0}}/${{opened}}`],
+    ['lines changed', `<span class="add">+${{tot.additions || 0}}</span> <span class="del">−${{tot.deletions || 0}}</span>`],
+    ['total ACUs', (tot.acus || 0).toFixed(1)],
+    ['avg time to PR', dur(t.counts.durations && t.counts.durations.avg_s)],
   ];
   document.getElementById('stats').innerHTML = cards.map(([l, n]) =>
     `<div class="card"><div class="n">${{n}}</div><div class="l">${{l}}</div></div>`).join('');
@@ -240,10 +250,17 @@ async function refresh() {{
       ? `<a href="${{r.session_url}}" target="_blank" rel="noopener">session</a>` : '—';
     const pr = r.pr_url
       ? `<a href="${{r.pr_url}}" target="_blank" rel="noopener">PR</a>` : '—';
+    const ci = r.pr_checks ? `<span class="ci ${{r.pr_checks}}">${{r.pr_checks}}</span>` : '—';
+    const size = r.pr_additions == null ? '—'
+      : `<span class="add">+${{r.pr_additions}}</span> <span class="del">−${{r.pr_deletions}}</span>`
+        + ` <span class="sub">· ${{r.pr_files}} file${{r.pr_files === 1 ? '' : 's'}}</span>`;
+    const acus = r.acus == null ? '—' : r.acus.toFixed(2)
+      + (r.devin_mode ? ` <span class="sub">· ${{esc(r.devin_mode)}}</span>` : '');
     return `<tr><td>${{iss}}</td><td>${{esc(r.issue_title)}}</td>`
-      + `<td>${{pill(r)}}</td><td>${{sess}}</td><td>${{pr}}</td>`
+      + `<td>${{pill(r)}}</td><td>${{sess}}</td><td>${{pr}}</td><td>${{ci}}</td>`
+      + `<td class="num">${{size}}</td><td class="num">${{acus}}</td>`
       + `<td class="sub">${{esc(st(r))}}</td><td class="sub">${{ago(r.created_at)}}</td></tr>`;
-  }}).join('') || '<tr><td colspan=7>No issues yet</td></tr>';
+  }}).join('') || '<tr><td colspan=10>No issues yet</td></tr>';
   document.getElementById('eventrows').innerHTML = e.events.map(ev =>
     `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
     + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`

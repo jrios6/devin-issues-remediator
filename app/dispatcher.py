@@ -116,6 +116,8 @@ class Dispatcher:
                 log.warning("status poll failed for issue #%s: %s", n, e)
                 continue
             status, detail = sess.get("status"), sess.get("status_detail") or ""
+            self.store.update_metrics(n, acus=sess.get("acus_consumed"),
+                                      devin_mode=sess.get("devin_mode"))
             prs = [p["pr_url"] for p in sess.get("pull_requests") or []]
             if prs:
                 self.store.mark_completed(n, "pr_opened", prs[0], "awaiting merge")
@@ -147,10 +149,12 @@ class Dispatcher:
         """Watch an open remediation PR until it merges (done) or closes (failed)."""
         n = r["issue_number"]
         try:
-            pr_state = self.gh.get_pull_state(r["pr_url"])
+            pr = self.gh.get_pull(r["pr_url"])
         except Exception as e:  # noqa: BLE001
             log.warning("PR state poll failed for issue #%s: %s", n, e)
             return
+        self._refresh_metrics(r, pr)
+        pr_state = pr["state"]
         if pr_state == "open":
             return
         if pr_state == "merged":
@@ -166,6 +170,24 @@ class Dispatcher:
             self._safe_label_swap(n, self.s.pr_opened_label, self.s.failed_label)
             self._safe_comment(n, "Remediation PR was closed without merging — "
                                   "needs human triage.")
+
+    def _refresh_metrics(self, r: dict, pr: dict):
+        """Pull cost (ACUs), mode, PR size and CI status for the dashboard."""
+        n = r["issue_number"]
+        fields = {"pr_additions": pr["additions"], "pr_deletions": pr["deletions"],
+                  "pr_files": pr["changed_files"], "pr_comments": pr["comments"]}
+        try:
+            fields["pr_checks"] = self.gh.check_summary(pr["head_sha"])
+        except Exception as e:  # noqa: BLE001
+            log.warning("check-runs poll failed for issue #%s: %s", n, e)
+        if r.get("session_id"):
+            try:
+                sess = self.devin.get_session(r["session_id"])
+                fields["acus"] = sess.get("acus_consumed")
+                fields["devin_mode"] = sess.get("devin_mode")
+            except Exception as e:  # noqa: BLE001
+                log.warning("session poll failed for issue #%s: %s", n, e)
+        self.store.update_metrics(n, **fields)
 
     def _loop(self, fn, interval: int, name: str):
         while not self._stop.is_set():
