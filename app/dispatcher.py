@@ -60,6 +60,11 @@ class Dispatcher:
         labels = {l["name"] for l in issue.get("labels", [])}
         if self.s.trigger_label not in labels:
             return False
+        # Refetch the canonical issue so dispatch never depends on webhook payload fidelity
+        try:
+            issue = self.gh.get_issue(issue["number"])
+        except Exception as e:  # noqa: BLE001
+            log.warning("refetch of issue #%s failed, using payload: %s", issue["number"], e)
         if not self.store.upsert_queued(issue["number"], issue["title"], issue["html_url"]):
             return False  # already tracked
         self.store.event("detected", issue["number"], f"via {source}")
@@ -107,16 +112,15 @@ class Dispatcher:
                 continue
             status, detail = sess.get("status"), sess.get("status_detail") or ""
             prs = [p["pr_url"] for p in sess.get("pull_requests") or []]
-            if status in ("running", "claimed", "resuming", "new"):
-                if sess.get("status_detail") != r.get("detail"):
-                    self.store.mark_running(n, detail)
-                    self.store.event("status", n, detail)
-                continue
             if prs:
                 self.store.mark_completed(n, "succeeded", prs[0], detail or status)
                 self.store.event("pr_opened", n, prs[0])
                 self._safe_label_swap(n, self.s.in_progress_label, self.s.done_label)
                 self._safe_comment(n, f"Remediation complete — PR opened: {prs[0]}")
+            elif status in ("running", "claimed", "resuming", "new") and detail != "finished":
+                if detail != r.get("detail"):
+                    self.store.mark_running(n, detail)
+                    self.store.event("status", n, detail)
             elif status == "exit" or detail == "finished":
                 out = (sess.get("structured_output") or {})
                 self.store.mark_completed(n, "succeeded", None,
