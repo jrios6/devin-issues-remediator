@@ -201,11 +201,15 @@ th.sortable:hover{{color:#dde1e8}}
 tr.filler td{{height:1.72rem}} tr.filler:hover{{background:none}}
 button:disabled{{opacity:.4;cursor:default}}
 #cfgbtn{{font-size:.8rem}}
-#cfgpanel{{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;background:#12151d;border:1px solid #232733;border-radius:8px;padding:.6rem .9rem;margin-bottom:1rem;font-size:.8rem;color:#8b93a5}}
-#cfgpanel.hidden{{display:none}}
-#cfgpanel label{{display:flex;align-items:center;gap:.4rem}}
-#cfgpanel select,#cfgpanel input{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.2rem .45rem;font-size:.8rem;width:7rem}}
-#cfgpanel select{{width:9rem}}
+.modal{{position:fixed;inset:0;background:#000a;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:10}}
+.modal.hidden{{display:none}}
+#cfgpanel{{background:#12151d;border:1px solid #2b3242;border-radius:10px;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:.7rem;min-width:320px;font-size:.85rem;color:#8b93a5;box-shadow:0 8px 30px #0009}}
+#cfgpanel .cfghead{{display:flex;justify-content:space-between;align-items:center;color:#dde1e8;font-weight:600;font-size:.9rem}}
+#cfgpanel .x{{background:none;border:none;color:#8b93a5;font-size:1.1rem;padding:0 .2rem;line-height:1}}
+#cfgpanel .x:hover{{color:#dde1e8}}
+#cfgpanel label{{display:flex;align-items:center;justify-content:space-between;gap:.6rem}}
+#cfgpanel select,#cfgpanel input{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.25rem .45rem;font-size:.82rem;width:9rem}}
+#cfgpanel .cfgfoot{{display:flex;align-items:center;gap:.7rem;justify-content:flex-end}}
 </style>
 <main>
 <header>
@@ -215,12 +219,15 @@ button:disabled{{opacity:.4;cursor:default}}
 <span id="updated"></span>
 <nav class="links"><button id="cfgbtn" onclick="toggleCfg()" title="Runtime settings">config</button><a href="/api/tasks" target="_blank" rel="noopener">api</a></nav>
 </header>
-<div id="cfgpanel" class="hidden">
+<div id="cfgmodal" class="modal hidden" onclick="if(event.target===this)toggleCfg()">
+<div id="cfgpanel">
+  <div class="cfghead"><span>Runtime settings</span><button class="x" onclick="toggleCfg()">×</button></div>
   <label>mode <select id="cfg-mode"></select></label>
   <label>max ACUs/session <input id="cfg-acu" type="number" min="0" step="1"></label>
   <label>poll interval (s) <input id="cfg-poll" type="number" min="5" step="5"></label>
-  <button onclick="saveCfg()">save</button>
-  <span id="cfgmsg" class="sub"></span>
+  <div class="cfgfoot"><button onclick="saveCfg()">save</button>
+  <span id="cfgmsg" class="sub"></span></div>
+</div>
 </div>
 <div class="cards" id="stats"></div>
 <div class="tblhead"><h2>Remediations</h2>
@@ -356,8 +363,11 @@ async function page(d) {{
   window.scrollTo({{top: document.body.scrollHeight, behavior: 'smooth'}});
 }}
 function toggleCfg() {{
-  document.getElementById('cfgpanel').classList.toggle('hidden');
+  document.getElementById('cfgmodal').classList.toggle('hidden');
 }}
+document.addEventListener('keydown', e => {{
+  if (e.key === 'Escape') document.getElementById('cfgmodal').classList.add('hidden');
+}});
 let cfgLoaded = false;
 async function loadCfg() {{
   if (cfgLoaded) return;
