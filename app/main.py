@@ -142,7 +142,7 @@ h2{{font-size:.8rem;font-weight:600;letter-spacing:.06em;text-transform:uppercas
 a{{color:#7aa2ff;text-decoration:none}} a:hover{{text-decoration:underline}}
 header .links{{margin-left:auto;font-size:.82rem;display:flex;gap:.9rem;align-items:center}}
 .cards{{display:flex;gap:.6rem;flex-wrap:wrap}}
-.card{{background:#12151d;border:1px solid #232733;border-radius:8px;padding:.5rem .9rem;min-width:100px}}
+.card{{background:#12151d;border:1px solid #232733;border-radius:8px;padding:.5rem .9rem;flex:1;min-width:88px;text-align:center}}
 .card .n{{font-size:1.25rem;font-weight:650;line-height:1.1}}
 .card .l{{color:#8b93a5;font-size:.72rem;letter-spacing:.04em;text-transform:uppercase}}
 table{{border-collapse:collapse;width:100%;background:#12151d;border:1px solid #232733;border-radius:8px;overflow:hidden}}
@@ -219,12 +219,10 @@ async function refresh() {{
   const opened = bk.pr_opened || 0, mergedN = bs.merged || 0;
   const cards = [
     ['issues', t.tasks.length],
-    ['dispatched', bk.dispatched || 0],
-    ['prs opened', opened],
+    ['PRs opened', opened],
     ['merged', mergedN],
     ['failed', bs.failed || 0],
-    ['merge rate', opened ? `${{Math.round(mergedN / opened * 100)}}%` : '—'],
-    ['avg to remediate', dur(t.counts.durations && t.counts.durations.avg_s)],
+    ['avg time', dur(t.counts.durations && t.counts.durations.avg_s)],
   ];
   document.getElementById('stats').innerHTML = cards.map(([l, n]) =>
     `<div class="card"><div class="n">${{n}}</div><div class="l">${{l}}</div></div>`).join('');
