@@ -117,7 +117,8 @@ class Store:
     def recent_events(self, limit: int = 100) -> list[dict]:
         with self._conn() as c:
             return [dict(r) for r in c.execute(
-                "SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,))]
+                "SELECT * FROM events WHERE kind != 'config' "
+                "ORDER BY id DESC LIMIT ?", (limit,))]
 
     def counts(self) -> dict:
         with self._conn() as c:
