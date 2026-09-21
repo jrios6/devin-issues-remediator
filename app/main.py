@@ -96,9 +96,12 @@ def metrics():
         "# HELP remediations_failed_total Remediations that failed",
         "# TYPE remediations_failed_total counter",
         f"remediations_failed_total {c['by_state'].get('failed', 0)}",
-        "# HELP remediations_inflight Currently queued or running",
+        "# HELP remediations_merged_total Remediations merged into the target repo",
+        "# TYPE remediations_merged_total counter",
+        f"remediations_merged_total {c['by_state'].get('merged', 0)}",
+        "# HELP remediations_inflight Currently queued, running, or awaiting PR merge",
         "# TYPE remediations_inflight gauge",
-        f"remediations_inflight {c['by_state'].get('queued', 0) + c['by_state'].get('running', 0)}",
+        f"remediations_inflight {c['by_state'].get('queued', 0) + c['by_state'].get('running', 0) + c['by_state'].get('pr_opened', 0)}",
         "# HELP remediation_duration_seconds Time from dispatch to completion",
         "# TYPE remediation_duration_seconds summary",
     ]
@@ -113,18 +116,20 @@ def metrics():
 def report():
     c = store.counts()
     t = store.all()
-    ok, failed = c["by_state"].get("succeeded", 0), c["by_state"].get("failed", 0)
-    inflight = c["by_state"].get("queued", 0) + c["by_state"].get("running", 0)
+    merged = c["by_state"].get("merged", 0)
+    failed = c["by_state"].get("failed", 0)
+    inflight = (c["by_state"].get("queued", 0) + c["by_state"].get("running", 0)
+                + c["by_state"].get("pr_opened", 0))
     d = c["durations"]
     lines = [
         "# Remediation report",
         f"_Generated {datetime.now(timezone.utc).isoformat(timespec='seconds')}_", "",
         f"- Issues detected: **{len(t)}**",
-        f"- Succeeded: **{ok}** | Failed: **{failed}** | In flight: **{inflight}**",
+        f"- Merged: **{merged}** | Failed: **{failed}** | In flight (queued/running/awaiting merge): **{inflight}**",
         f"- PRs opened: **{c['by_kind'].get('pr_opened', 0)}**",
         f"- Avg time to remediate: **{_fmt_s(d.get('avg_s'))}** "
         f"(min {_fmt_s(d.get('min_s'))}, max {_fmt_s(d.get('max_s'))})",
-        f"- Success rate: **{(ok / (ok + failed) * 100) if (ok + failed) else 0:.0f}%**",
+        f"- Merge rate (PRs merged / opened): **{(merged / c['by_kind'].get('pr_opened', 0) * 100) if c['by_kind'].get('pr_opened') else 0:.0f}%**",
         "", "| Issue | State | Session | PR |", "|---|---|---|---|",
     ]
     for r in t:
@@ -145,8 +150,9 @@ def dashboard():
         age = _ago(r["created_at"])
         sess = f'<a href="{r["session_url"]}">session</a>' if r["session_url"] else "—"
         pr = f'<a href="{r["pr_url"]}">PR</a>' if r["pr_url"] else "—"
+        pr_state = f" ({r['pr_state']})" if r.get("pr_state") else ""
         rows += (f"<tr><td>#{r['issue_number']}</td><td>{html.escape(r['issue_title'])}</td>"
-                 f"<td class='{r['state']}'>{r['state']}</td>"
+                 f"<td class='{r['state']}'>{r['state']}{pr_state}</td>"
                  f"<td>{sess}</td><td>{pr}</td><td>{html.escape(str(r.get('detail') or ''))}</td>"
                  f"<td>{age}</td></tr>")
     evs = "".join(
@@ -160,6 +166,7 @@ body{{font-family:system-ui,sans-serif;margin:2rem;background:#0f1117;color:#e6e
 table{{border-collapse:collapse;width:100%;margin-bottom:2rem}}
 td,th{{border:1px solid #333;padding:.4rem .6rem;text-align:left;font-size:.9rem}}
 a{{color:#7aa2ff}} .running{{color:#fbbf24}} .succeeded{{color:#34d399}}
+.merged{{color:#34d399}} .pr_opened{{color:#a78bfa}}
 .failed{{color:#f87171}} .queued{{color:#9ca3af}} h1,h2{{font-weight:600}}
 </style>
 <h1>Devin Issue Remediator — {settings.github_repo}</h1>

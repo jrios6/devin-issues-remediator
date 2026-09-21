@@ -102,6 +102,9 @@ class Dispatcher:
 
     def track_once(self):
         for r in self.store.active():
+            if r["state"] == "pr_opened":
+                self._track_pr(r)
+                continue
             if r["state"] != "running" or not r["session_id"]:
                 continue
             n = r["issue_number"]
@@ -113,29 +116,54 @@ class Dispatcher:
             status, detail = sess.get("status"), sess.get("status_detail") or ""
             prs = [p["pr_url"] for p in sess.get("pull_requests") or []]
             if prs:
-                self.store.mark_completed(n, "succeeded", prs[0], detail or status)
+                self.store.mark_completed(n, "pr_opened", prs[0], detail or status)
+                self.store.set_pr_state(n, "open")
                 self.store.event("pr_opened", n, prs[0])
-                self._safe_label_swap(n, self.s.in_progress_label, self.s.done_label)
-                self._safe_comment(n, f"Remediation complete — PR opened: {prs[0]}")
+                self._safe_label_swap(n, self.s.in_progress_label, self.s.pr_opened_label)
+                self._safe_comment(n, f"Devin opened a remediation PR: {prs[0]}\n\n"
+                                      "_Marked `devin-done` only after the PR merges._")
             elif status in ("running", "claimed", "resuming", "new") and detail != "finished":
                 if detail != r.get("detail"):
                     self.store.mark_running(n, detail)
                     self.store.event("status", n, detail)
             elif status == "exit" or detail == "finished":
                 out = (sess.get("structured_output") or {})
-                self.store.mark_completed(n, "succeeded", None,
-                                          f"finished: {out.get('summary', '')[:200]}")
-                self.store.event("status", n, "finished without PR")
-                self._safe_label_swap(n, self.s.in_progress_label, self.s.done_label)
+                self.store.mark_completed(n, "failed", None,
+                                          f"finished without PR: {out.get('summary', '')[:200]}")
+                self.store.event("failed", n, "finished without PR")
+                self._safe_label_swap(n, self.s.in_progress_label, self.s.failed_label)
                 self._safe_comment(n, "Devin session finished without opening a PR. "
                                       f"Session: {sess.get('url')}")
             else:
-                self.store.mark_completed(n, "failed", prs[0] if prs else None,
-                                          f"{status}: {detail}")
+                self.store.mark_completed(n, "failed", None, f"{status}: {detail}")
                 self.store.event("failed", n, f"{status}: {detail}")
                 self._safe_label_swap(n, self.s.in_progress_label, self.s.failed_label)
                 self._safe_comment(n, f"Devin session ended in state `{status}` "
                                       f"({detail}). Session: {sess.get('url')}")
+
+    def _track_pr(self, r: dict):
+        """Watch an open remediation PR until it merges (done) or closes (failed)."""
+        n = r["issue_number"]
+        try:
+            pr_state = self.gh.get_pull_state(r["pr_url"])
+        except Exception as e:  # noqa: BLE001
+            log.warning("PR state poll failed for issue #%s: %s", n, e)
+            return
+        if pr_state == "open":
+            return
+        if pr_state == "merged":
+            self.store.set_pr_state(n, "merged")
+            self.store.mark_completed(n, "merged", r["pr_url"], "PR merged")
+            self.store.event("merged", n, r["pr_url"])
+            self._safe_label_swap(n, self.s.pr_opened_label, self.s.done_label)
+            self._safe_comment(n, f"Remediation PR merged: {r['pr_url']}")
+        else:  # closed without merge
+            self.store.set_pr_state(n, "closed")
+            self.store.mark_completed(n, "failed", r["pr_url"], "PR closed unmerged")
+            self.store.event("failed", n, "PR closed unmerged")
+            self._safe_label_swap(n, self.s.pr_opened_label, self.s.failed_label)
+            self._safe_comment(n, "Remediation PR was closed without merging — "
+                                  "needs human triage.")
 
     def _loop(self, fn, interval: int, name: str):
         while not self._stop.is_set():

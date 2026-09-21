@@ -10,6 +10,7 @@ class Settings:
     github_repo: str = "jrios6/superset"
     trigger_label: str = "devin-fix"
     in_progress_label: str = "devin-in-progress"
+    pr_opened_label: str = "devin-pr-opened"
     done_label: str = "devin-done"
     failed_label: str = "devin-failed"
     webhook_secret: str = ""
@@ -36,6 +37,7 @@ def load() -> Settings:
         github_token=gh_token,
         github_repo=os.environ.get("GITHUB_REPO", "jrios6/superset"),
         trigger_label=os.environ.get("TRIGGER_LABEL", "devin-fix"),
+        pr_opened_label=os.environ.get("PR_OPENED_LABEL", "devin-pr-opened"),
         webhook_secret=os.environ.get("GITHUB_WEBHOOK_SECRET", ""),
         poll_interval_seconds=int(os.environ.get("POLL_INTERVAL_SECONDS", "60")),
         track_interval_seconds=int(os.environ.get("TRACK_INTERVAL_SECONDS", "30")),

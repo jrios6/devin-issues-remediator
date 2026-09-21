@@ -5,7 +5,9 @@ Event-driven GitHub-issue remediation powered by the Devin API.
 When an issue in the target repo (`jrios6/superset`) is labeled **`devin-fix`**, this
 service dispatches a Devin session to implement the fix, tracks the session to
 completion, and reports back on the issue — labeling it and commenting with the
-resulting pull request.
+resulting pull request. **`devin-done` means merged**: issues are labeled
+`devin-pr-opened` while the PR awaits human review and only flip to `devin-done`
+when the PR actually merges (a closed-unmerged PR → `devin-failed`).
 
 ## Architecture
 
@@ -25,9 +27,12 @@ GitHub issue labeled "devin-fix"
                         │
             ┌───────────┴────────────┐
             ▼                        ▼
-      PR opened / finished      failed / suspended
-      label → devin-done        label → devin-failed
-      comment with PR link      comment with session link
+      PR opened                  failed / suspended
+      label → devin-pr-opened    label → devin-failed
+      comment with PR link       comment with session link
+            │
+            ▼ (PR watcher polls GitHub for merge state)
+      merged → devin-done     closed unmerged → devin-failed
 ```
 
 State lives in SQLite (`/data/remediator.db`), so restarts are safe and

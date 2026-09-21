@@ -32,3 +32,13 @@ class GitHubClient:
 
     def remove_label(self, number: int, label: str):
         self._c.delete(f"/issues/{number}/labels/{label}").raise_for_status()
+
+    def get_pull_state(self, pr_url: str) -> str:
+        """'merged' | 'closed' | 'open' for a PR URL on this repo."""
+        number = pr_url.rstrip("/").rsplit("/", 1)[-1]
+        resp = self._c.get(f"/pulls/{number}")
+        resp.raise_for_status()
+        pr = resp.json()
+        if pr.get("merged_at"):
+            return "merged"
+        return "closed" if pr.get("state") == "closed" else "open"
