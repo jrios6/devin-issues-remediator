@@ -205,19 +205,19 @@ button:focus-visible,select:focus-visible,input:focus-visible{{outline:1px solid
 #cfgbtn{{font-size:.8rem}}
 .modal{{position:fixed;inset:0;background:#07090dcc;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:10;backdrop-filter:blur(2px)}}
 .modal.hidden{{display:none}}
-#cfgpanel{{background:#141824;border:1px solid #2f3748;border-radius:12px;padding:1.1rem 1.3rem 1rem;display:flex;flex-direction:column;gap:.85rem;min-width:340px;font-size:.85rem;color:#8b93a5;box-shadow:0 12px 40px #000b;border-top:2px solid #1f6feb;animation:pop .12s ease-out}}
+#cfgpanel{{background:#141824;border:1px solid #2f3748;border-radius:14px;padding:1.4rem 1.6rem 1.2rem;display:flex;flex-direction:column;gap:1.05rem;min-width:420px;font-size:.9rem;color:#8b93a5;box-shadow:0 16px 48px #000c;border-top:2px solid #1f6feb;animation:pop .12s ease-out}}
 @keyframes pop{{from{{transform:scale(.97);opacity:0}}to{{transform:scale(1);opacity:1}}}}
 #cfgpanel .cfghead{{display:flex;justify-content:space-between;align-items:flex-start}}
-#cfgpanel .cfgtitle{{color:#dde1e8;font-weight:650;font-size:.95rem}}
-#cfgpanel .cfgsub{{color:#6b7280;font-size:.72rem;margin-top:.15rem}}
+#cfgpanel .cfgtitle{{color:#dde1e8;font-weight:650;font-size:1.05rem}}
+#cfgpanel .cfgsub{{color:#6b7280;font-size:.78rem;margin-top:.25rem}}
 #cfgpanel .x{{background:none;border:none;color:#6b7280;font-size:1.15rem;padding:0 .2rem;line-height:1;cursor:pointer}}
 #cfgpanel .x:hover{{color:#dde1e8}}
-#cfgpanel .cfgrow{{display:flex;align-items:center;justify-content:space-between;gap:.8rem}}
-#cfgpanel .cfgrow>span{{font-size:.82rem}}
-#cfgpanel select,#cfgpanel input{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:7px;padding:.32rem .5rem;font-size:.82rem;width:9.5rem;outline:none;transition:border-color .1s}}
+#cfgpanel .cfgrow{{display:flex;align-items:center;justify-content:space-between;gap:1.4rem}}
+#cfgpanel .cfgrow>span{{font-size:.88rem;color:#b8bfcd}}
+#cfgpanel select,#cfgpanel input{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:8px;padding:.45rem .6rem;font-size:.88rem;width:11rem;outline:none;transition:border-color .1s}}
 #cfgpanel select:focus,#cfgpanel input:focus{{border-color:#1f6feb}}
-#cfgpanel .cfgfoot{{display:flex;align-items:center;gap:.7rem;justify-content:flex-end;border-top:1px solid #232733;padding-top:.8rem}}
-#cfgpanel .primary{{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600;padding:.3rem 1rem}}
+#cfgpanel .cfgfoot{{display:flex;align-items:center;gap:.7rem;justify-content:flex-end;border-top:1px solid #232733;padding-top:1rem;margin-top:.2rem}}
+#cfgpanel .primary{{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600;padding:.42rem 1.3rem;font-size:.88rem}}
 #cfgpanel .primary:hover{{background:#3b82f6;border-color:#3b82f6}}
 </style>
 <main>
