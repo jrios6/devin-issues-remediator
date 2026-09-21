@@ -185,10 +185,8 @@ button{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:
 button:hover{{background:#232938}}
 .tblhead{{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap}}
 .tblhead h2{{margin-bottom:0}}
-.filters{{display:flex;gap:.4rem;flex-wrap:wrap;margin:.4rem 0 .5rem}}
-.fbtn{{background:#12151d;border:1px solid #232733;border-radius:999px;padding:.15rem .65rem;font-size:.75rem;color:#8b93a5}}
-.fbtn:hover{{color:#dde1e8}}
-.fbtn.on{{background:#1f6feb33;color:#7aa2ff;border-color:#1f6feb66}}
+.filters{{display:flex;gap:.4rem;align-items:center;margin:.4rem 0 .5rem}}
+.filters select{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.15rem .45rem;font-size:.78rem}}
 th.sortable{{cursor:pointer;user-select:none}}
 th.sortable:hover{{color:#dde1e8}}
 #pollerbtn{{display:inline-flex;align-items:center;gap:.4rem;background:#1c2230;border:1px solid #39455c;box-shadow:0 1px 0 #0006;padding:.22rem .7rem;font-weight:600}}
@@ -225,7 +223,12 @@ button:disabled{{opacity:.4;cursor:default}}
   <span id="cfgmsg" class="sub"></span>
 </div>
 <div class="cards" id="stats"></div>
-<div class="tblhead"><h2>Remediations</h2><div class="filters" id="statefilters"></div></div>
+<div class="tblhead"><h2>Remediations</h2>
+<div class="filters"><label class="sub" for="statefilter">state</label>
+<select id="statefilter" onchange="setFilter(this.value)">
+<option value="all">all</option><option>queued</option><option>running</option>
+<option>pr_opened</option><option>merged</option><option>failed</option>
+</select></div></div>
 <table><thead><tr><th id="issueth" class="sortable" onclick="toggleSort()">Issue <span id="sortarrow">↓</span></th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
 <th>CI</th><th>Size</th><th>ACUs</th><th>Progress</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
 <div class="pager">
@@ -287,17 +290,7 @@ async function refresh() {{
     if (r.state === 'merged') return 'PR merged';
     return {{waiting_for_user: 'working', working: 'working'}}[r.detail] || (r.detail || '');
   }};
-  const seen = new Set(t.tasks.map(r => r.state));
-  const sf = document.getElementById('statefilters');
-  if (sf.dataset.k !== [...seen].sort().join(',')) {{
-    sf.dataset.k = [...seen].sort().join(',');
-    stateFilter = stateFilter === 'all' || seen.has(stateFilter) ? stateFilter : 'all';
-    sf.innerHTML = ['all', ...[...seen].sort()].map(s =>
-      `<button class="fbtn${{s === stateFilter ? ' on' : ''}}" onclick="setFilter('${{s}}')">${{s}}</button>`).join('');
-  }} else {{
-    sf.querySelectorAll('.fbtn').forEach(b =>
-      b.classList.toggle('on', b.textContent === stateFilter));
-  }}
+  document.getElementById('statefilter').value = stateFilter;
   const rows = t.tasks
     .filter(r => stateFilter === 'all' || r.state === stateFilter)
     .sort((a, b) => sortAsc ? a.issue_number - b.issue_number : b.issue_number - a.issue_number);
