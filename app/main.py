@@ -200,6 +200,8 @@ th.sortable:hover{{color:#dde1e8}}
 .pager{{display:flex;align-items:center;gap:.7rem;margin-top:.6rem}}
 tr.filler td{{height:1.72rem}} tr.filler:hover{{background:none}}
 button:disabled{{opacity:.4;cursor:default}}
+button:focus,select:focus,input:focus{{outline:none}}
+button:focus-visible,select:focus-visible,input:focus-visible{{outline:1px solid #4d5b76;outline-offset:1px}}
 #cfgbtn{{font-size:.8rem}}
 .modal{{position:fixed;inset:0;background:#07090dcc;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:10;backdrop-filter:blur(2px)}}
 .modal.hidden{{display:none}}
