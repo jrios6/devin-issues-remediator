@@ -118,7 +118,7 @@ class Dispatcher:
             status, detail = sess.get("status"), sess.get("status_detail") or ""
             prs = [p["pr_url"] for p in sess.get("pull_requests") or []]
             if prs:
-                self.store.mark_completed(n, "pr_opened", prs[0], detail or status)
+                self.store.mark_completed(n, "pr_opened", prs[0], "awaiting merge")
                 self.store.set_pr_state(n, "open")
                 self.store.event("pr_opened", n, prs[0])
                 self._safe_label_swap(n, self.s.in_progress_label, self.s.pr_opened_label)

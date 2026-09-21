@@ -179,9 +179,7 @@ def dashboard():
         pr = (f'<a href="{r["pr_url"]}" target="_blank" rel="noopener">PR</a>'
               if r["pr_url"] else "—")
         pr_state = f" ({r['pr_state']})" if r.get("pr_state") else ""
-        detail = str(r.get("detail") or "")
-        if r.get("pr_url"):
-            detail = {"waiting_for_user": "watching PR", "working": "updating PR"}.get(detail, detail)
+        detail = _progress(r)
         rows += (f"<tr><td>{issue}</td><td>{html.escape(r['issue_title'])}</td>"
                  f"<td class='{r['state']}'>{r['state']}{pr_state}</td>"
                  f"<td>{sess}</td><td>{pr}</td><td>{html.escape(detail)}</td>"
@@ -241,7 +239,7 @@ button:disabled{{opacity:.4;cursor:default}}
 <div class="cards" id="stats"></div>
 <h2>Remediations</h2>
 <table><thead><tr><th>Issue</th><th>Title</th><th>State</th><th>Session</th><th>PR</th>
-<th>Session status</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
+<th>Progress</th><th>Seen</th></tr></thead><tbody id="taskrows">{rows}</tbody></table>
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
@@ -285,9 +283,11 @@ async function refresh() {{
   document.getElementById('stats').innerHTML = cards.map(([l, n]) =>
     `<div class="card"><div class="n">${{n}}</div><div class="l">${{l}}</div></div>`).join('');
   const st = r => {{
-    const d = r.detail || '';
-    if (r.pr_url) return {{waiting_for_user: 'watching PR', working: 'updating PR'}}[d] || d;
-    return d;
+    if (r.state === 'pr_opened') {{
+      return r.pr_state === 'closed' ? 'PR closed' : 'awaiting merge';
+    }}
+    if (r.state === 'merged') return 'PR merged';
+    return {{waiting_for_user: 'working', working: 'working'}}[r.detail] || (r.detail || '');
   }};
   document.getElementById('taskrows').innerHTML = t.tasks.map(r => {{
     const iss = `<a href="${{ISSUE_BASE + r.issue_number}}" target="_blank" rel="noopener">#${{r.issue_number}}</a>`;
@@ -335,6 +335,15 @@ refresh();
 setInterval(refresh, 10000);
 setInterval(tickUpdated, 1000);
 </script>"""
+
+
+def _progress(r: dict) -> str:
+    if r["state"] == "pr_opened":
+        return "PR closed" if r.get("pr_state") == "closed" else "awaiting merge"
+    if r["state"] == "merged":
+        return "PR merged"
+    detail = str(r.get("detail") or "")
+    return "working" if detail in ("working", "waiting_for_user") else detail
 
 
 def _linkify(message: str) -> str:
