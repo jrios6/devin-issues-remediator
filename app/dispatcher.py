@@ -265,7 +265,6 @@ class Dispatcher:
             if v < 5:
                 raise ValueError("poll_interval_seconds must be >= 5")
             self.poller_interval = v
-            self.poller_enabled = True
         return self.get_config()
 
     def _poll_loop(self):
