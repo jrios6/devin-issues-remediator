@@ -239,8 +239,15 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 #cfgpanel .cfgfoot{{display:flex;align-items:center;gap:.7rem;justify-content:flex-end;border-top:1px solid #232733;padding-top:1rem;margin-top:.2rem}}
 #cfgpanel .primary{{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600;padding:.42rem 1.3rem;font-size:.88rem}}
 #cfgpanel .primary:hover{{background:#3b82f6;border-color:#3b82f6}}
-.split{{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:1.2rem;align-items:start}}
-@media(max-width:1050px){{.split{{grid-template-columns:1fr}}}}
+.split{{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:1.2rem;align-items:start}}
+.maincol,.sidecol{{min-width:0}}
+.sidecol{{border-left:1px solid #232733;padding-left:1rem;position:sticky;top:1rem}}
+.sidecol table{{table-layout:fixed;width:100%}}
+.sidecol th:nth-child(1),.sidecol td:nth-child(1){{width:4.8rem}}
+.sidecol th:nth-child(2),.sidecol td:nth-child(2){{width:5.6rem;white-space:nowrap}}
+.sidecol th:nth-child(3),.sidecol td:nth-child(3){{width:2.6rem;white-space:nowrap}}
+.sidecol td{{overflow-wrap:break-word}}
+@media(max-width:1050px){{.split{{grid-template-columns:1fr}}.sidecol{{border-left:none;padding-left:0;position:static}}}}
 @media(max-width:800px){{main{{padding:1rem}}.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}.health{{grid-template-columns:1fr}}}}
 </style>
 <main>
@@ -266,6 +273,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 </div>
 <div id="refresh-error" class="banner hidden" role="alert"></div>
 <noscript><p>This dashboard requires JavaScript. <a href="/api/tasks">View remediation data</a>.</p></noscript>
+<div class="split">
+<div class="maincol">
 <h2>Overview <span class="sub">· all time</span></h2>
 <div class="cards" id="stats" aria-label="Remediation outcomes"></div>
 <div class="secondary" id="secondary-stats"></div>
@@ -274,8 +283,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <span class="sub">Open PRs may need review or merge. Categories can overlap.</span>
 <h2>Integration health</h2>
 <div class="health" id="integrations"><div class="sub">Waiting for sync status…</div></div>
-<div class="split">
-<div>
 <div class="tblhead"><h2>Remediations</h2>
 <div class="filters"><span id="active-filter" class="sub"></span><button id="clear-filter" class="hidden" onclick="setFilter('all')">Clear filter</button><label class="sub" for="statefilter">State</label>
 <select id="statefilter" onchange="setFilter(this.value)">
@@ -291,7 +298,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <button id="tnext" onclick="tpage(1)">next ›</button>
 </div>
 </div>
-<div>
+<aside class="sidecol">
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
@@ -300,7 +307,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <span id="pageinfo" class="sub"></span>
 <button id="next" onclick="page(1)">older ›</button>
 </div>
-</div>
+</aside>
 </div>
 </main>
 <script>
@@ -314,8 +321,13 @@ const PAGE = 15;
 let offset = 0;
 const ISSUE_BASE = 'https://github.com/{settings.github_repo}/issues/';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}})[c]);
-const linkify = s => esc(s).replace(/https?:\/\/\S+/g,
-  u => `<a href="${{u}}" target="_blank" rel="noopener">${{u}}</a>`);
+const linkify = s => esc(s).replace(/https?:\/\/\S+/g, u => {{
+  const m = u.match(/\/pull\/(\d+)/);
+  const label = m ? `PR #${{m[1]}}`
+    : u.includes('app.devin.ai/sessions/') ? 'devin session'
+    : u.replace(/^https?:\/\//, '');
+  return `<a href="${{u}}" target="_blank" rel="noopener">${{label}}</a>`;
+}});
 const waitingForInput = r => r.state === 'running' && !r.pr_url && r.detail === 'waiting_for_user';
 const openPR = r => r.state === 'pr_opened' && (!r.pr_state || r.pr_state === 'open');
 const stateLabels = {{queued: 'Queued', running: 'Working', pr_opened: 'PR open', merged: 'Merged', failed: 'Failed'}};
@@ -548,10 +560,14 @@ setInterval(tickUpdated, 1000);
 
 
 def _linkify(message: str) -> str:
-    return re.sub(
-        r"https?://\S+",
-        lambda m: f'<a href="{m.group(0)}" target="_blank" rel="noopener">{m.group(0)}</a>',
-        html.escape(message))
+    def repl(m):
+        url = m.group(0)
+        pr = re.search(r"/pull/(\d+)", url)
+        label = (f"PR #{pr.group(1)}" if pr
+                 else "devin session" if "app.devin.ai/sessions/" in url
+                 else re.sub(r"^https?://", "", url))
+        return f'<a href="{url}" target="_blank" rel="noopener">{label}</a>'
+    return re.sub(r"https?://\S+", repl, html.escape(message))
 
 
 def _ago(ts: float) -> str:
