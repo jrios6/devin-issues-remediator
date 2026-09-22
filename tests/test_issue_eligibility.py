@@ -50,10 +50,16 @@ def test_refresh_failure_leaves_issue_eligible_for_a_later_attempt(dispatcher, i
     create.assert_not_called()
     assert dispatcher.store.all() == []
     with patch.object(dispatcher.gh, "get_issue", return_value=issue), \
-            patch.object(dispatcher, "_dispatch") as dispatch:
+            patch.object(dispatcher.gh, "add_label"), \
+            patch.object(dispatcher.gh, "remove_label"), \
+            patch.object(dispatcher.gh, "comment"), \
+            patch.object(dispatcher.devin, "create_session", return_value={
+                "session_id": "devin-test", "url": "https://app.devin.ai/sessions/test",
+            }) as create:
         assert dispatcher.consider_issue(issue, "poller") is True
         assert dispatcher.consider_issue(issue, "webhook") is False
-    dispatch.assert_called_once_with(issue)
+    create.assert_called_once()
+    assert dispatcher.store.all()[0]["state"] == "running"
 
 
 def test_dispatch_uses_canonical_prompt_and_creates_one_session(dispatcher, issue):
