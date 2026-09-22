@@ -241,7 +241,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 #cfgpanel .primary:hover{{background:#3b82f6;border-color:#3b82f6}}
 .split{{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:1.2rem;align-items:start}}
 .maincol,.sidecol{{min-width:0}}
-.sidecol{{border-left:1px solid #232733;padding-left:1rem;position:sticky;top:1rem}}
+.sidecol{{border-left:1px solid #232733;padding-left:1rem;position:sticky;top:1rem;max-height:calc(100vh - 2rem);overflow-y:auto;scrollbar-width:thin}}
 .sidecol table{{table-layout:fixed;width:100%}}
 .sidecol th{{padding:.5rem .6rem}}
 .sidecol td{{padding:.46rem .6rem;font-size:.82rem;line-height:1.35;overflow-wrap:break-word}}
@@ -304,11 +304,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
-<div class="pager">
-<button id="prev" onclick="page(-1)">‹ newer</button>
-<span id="pageinfo" class="sub"></span>
-<button id="next" onclick="page(1)">older ›</button>
-</div>
 </aside>
 </div>
 </main>
@@ -319,8 +314,7 @@ const ago = ts => {{
   if (s >= 3600) return `${{Math.floor(s / 3600)}}h ${{Math.floor(s % 3600 / 60)}}m ago`;
   return s >= 60 ? `${{Math.floor(s / 60)}}m ago` : `${{s}}s ago`;
 }};
-const PAGE = 15;
-let offset = 0;
+
 const ISSUE_BASE = 'https://github.com/{settings.github_repo}/issues/';
 const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}})[c]);
 const linkify = s => esc(s).replace(/https?:\/\/\S+/g, u => {{
@@ -452,7 +446,7 @@ async function refresh() {{
   try {{
     const [t, e, p, health] = await Promise.all([
       fetchJSON('/api/tasks'),
-      fetchJSON(`/api/events?limit=${{PAGE}}&offset=${{offset}}`),
+      fetchJSON('/api/events?limit=500'),
       fetchJSON('/api/poller'),
       fetchJSON('/api/integrations'),
     ]);
@@ -467,13 +461,7 @@ async function refresh() {{
       `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
       + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
       + `<td class="ev-msg">${{linkify(ev.message)}}</td></tr>`
-    ).join('') + '<tr class="filler"><td colspan=4></td></tr>'.repeat(
-      Math.max(0, PAGE - e.events.length));
-    const from = e.total ? offset + 1 : 0;
-    document.getElementById('pageinfo').textContent =
-      `${{from}}–${{offset + e.events.length}} of ${{e.total}}`;
-    document.getElementById('prev').disabled = offset === 0;
-    document.getElementById('next').disabled = offset + e.events.length >= e.total;
+    ).join('');
     const pb = document.getElementById('pollerbtn');
     pb.className = p.enabled ? '' : 'off';
     pb.innerHTML = '<span class="dot"></span>' + (p.enabled
@@ -509,10 +497,6 @@ function tickUpdated() {{
   document.getElementById('updated').textContent = lastUpdate
     ? 'Dashboard fetched ' + ago(lastUpdate) : 'Dashboard not yet loaded';
   if (pageFresh && lastUpdate && Date.now() / 1000 - lastUpdate > 30) showRefreshError();
-}}
-async function page(d) {{
-  offset = Math.max(0, offset + d * PAGE);
-  await refresh();
 }}
 function toggleCfg() {{
   document.getElementById('cfgmodal').classList.toggle('hidden');
