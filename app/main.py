@@ -165,10 +165,6 @@ header .links{{margin-left:auto;font-size:.82rem;display:flex;gap:.9rem;align-it
 .attention button{{padding:.65rem .85rem;font-size:.85rem}}
 .attention button[aria-pressed="true"]{{border-color:#7aa2ff;background:#1b2d4d}}
 .attention strong{{margin-right:.35rem;font-size:1rem}}
-.health{{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin:.7rem 0 1.2rem}}
-.health-item{{padding:.8rem 1rem;border:1px solid #2b3242;border-radius:8px;background:#12151d}}
-.health-item .sub{{display:block;margin-top:.5rem;line-height:1.6;overflow-wrap:anywhere}}
-.health-item .pill{{margin-left:.5rem}}
 .banner{{border:1px solid #8b692b;background:#342a18;color:#ffdf98;border-radius:8px;padding:.8rem 1rem;margin-bottom:1rem}}
 .hidden{{display:none}}
 .table-wrap{{overflow-x:auto}}
@@ -250,7 +246,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 .sidecol th:nth-child(2),.sidecol td:nth-child(2){{width:5.2rem;white-space:nowrap}}
 .sidecol th:nth-child(3),.sidecol td:nth-child(3){{width:3rem;white-space:nowrap}}
 @media(max-width:1050px){{.split{{grid-template-columns:1fr}}.sidecol{{border-left:none;padding-left:0;position:static}}}}
-@media(max-width:800px){{main{{padding:1rem}}.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}.health{{grid-template-columns:1fr}}}}
+@media(max-width:800px){{main{{padding:1rem}}.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}
 </style>
 <main>
 <header>
@@ -283,8 +279,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <h2>Needs attention</h2>
 <div class="attention" id="attention" aria-label="Attention filters"></div>
 <span class="sub">Open PRs may need review or merge. Categories can overlap.</span>
-<h2>Integration health</h2>
-<div class="health" id="integrations"><div class="sub">Waiting for sync status…</div></div>
 <div class="tblhead"><h2>Remediations</h2>
 <div class="filters"><span id="active-filter" class="sub"></span><button id="clear-filter" class="hidden" onclick="setFilter('all')">Clear filter</button><label class="sub" for="statefilter">State</label>
 <select id="statefilter" onchange="setFilter(this.value)">
@@ -351,28 +345,6 @@ function ciBadge(r) {{
   const note = openPR(r) ? '' : '<span class="sub ci-note">Last recorded</span>';
   return `<span class="ci ${{r.pr_checks ? esc(r.pr_checks) : 'unknown'}}">${{esc(label)}}</span>${{note}}`;
 }}
-function renderHealth() {{
-  const labels = {{healthy: 'Healthy', error: 'Sync error', stale: 'Stale', pending: 'Awaiting sync', idle: 'Idle'}};
-  document.getElementById('integrations').innerHTML = ['github', 'devin'].map(provider => {{
-    const reading = integrationHealth[provider] || {{status: 'pending', resources: {{}}}};
-    const status = pageFresh ? reading.status : 'pending';
-    const last = reading.last_success ? ago(reading.last_success) : 'not yet confirmed';
-    let description = `Last successful sync: ${{last}}`;
-    if (status === 'idle') description = provider === 'github'
-      ? 'Issue polling paused; no open PRs to track.' : 'No active sessions to track.';
-    if (status === 'stale') description += ' · Tracking is overdue.';
-    const failures = Object.entries(reading.resources).filter(([, r]) => r.error).map(([key, r]) => {{
-      const [kind, number] = key.split(':');
-      const name = {{issues: 'Issue polling', pr: 'PR', checks: 'CI', session: 'Session'}}[kind] || kind;
-      return `${{name}}${{number ? ` #${{number}}` : ''}}: ${{r.error}}`;
-    }});
-    if (failures.length) description += ` · ${{failures.join('; ')}}`;
-    if (!pageFresh) description = 'Dashboard connection unavailable; sync status cannot be verified.';
-    return `<div class="health-item"><strong>${{provider === 'github' ? 'GitHub' : 'Devin'}}</strong>`
-      + `<span class="pill ${{status}}">${{pageFresh ? labels[status] : 'Unknown'}}</span>`
-      + `<span class="sub">${{esc(description)}}</span></div>`;
-  }}).join('');
-}}
 function renderTasks() {{
   if (!cached) return;
   const t = cached, bs = t.counts.by_state, tot = t.counts.totals || {{}};
@@ -398,7 +370,7 @@ function renderTasks() {{
     const count = t.tasks.filter(r => needsAttention(r, key)).length;
     const suffix = key === 'ci' && unverified ? ' · incomplete' : '';
     return `<button onclick="setAttention('${{key}}')" aria-pressed="${{attentionFilter === key}}" `
-      + `title="${{key === 'ci' ? 'Only freshly verified CI failures are counted. Check integration health for missing results.' : label}}">`
+      + `title="${{key === 'ci' ? 'Only freshly verified CI failures are counted; unverifiable results show as Unverified.' : label}}">`
       + `<strong class="num">${{count}}</strong> ${{label}}${{suffix}}</button>`;
   }}).join('');
   document.getElementById('statefilter').value = stateFilter;
@@ -456,7 +428,7 @@ async function refresh() {{
     pageFresh = true;
     document.getElementById('refresh-error').classList.add('hidden');
     renderTasks();
-    renderHealth();
+
     document.getElementById('eventrows').innerHTML = e.events.map(ev =>
       `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
       + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
@@ -481,7 +453,6 @@ function showRefreshError() {{
     : 'Unable to load dashboard data. Retrying automatically.';
   banner.classList.remove('hidden');
   renderTasks();
-  renderHealth();
 }}
 const TPAGE = 10;
 let taskOffset = 0, sortAsc = false, stateFilter = 'all', attentionFilter = '';
