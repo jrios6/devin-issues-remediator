@@ -192,10 +192,8 @@ tbody tr:hover{{background:#181d29}}
 .sub{{color:#a5aec0;font-size:.8rem}}
 .ci{{display:inline-block;padding:.05rem .45rem;border-radius:999px;font-size:.72rem;font-weight:600}}
 .ci.passing{{background:#123528;color:#4ade80}} .ci.failing{{background:#3b1a1a;color:#f87171}} .ci.pending{{background:#3a2e14;color:#fbbf24}}
-.ci.unknown,.pill.idle{{background:#2a2f3c;color:#c6cddd}}
-.pill.healthy{{background:#123528;color:#4ade80}}
-.pill.error{{background:#3b1a1a;color:#f87171}}
-.pill.stale,.pill.pending,.pill.waiting{{background:#3a2e14;color:#fbbf24}}
+.ci.unknown{{background:#2a2f3c;color:#c6cddd}}
+.pill.waiting{{background:#3a2e14;color:#fbbf24}}
 .add{{color:#4ade80}} .del{{color:#f87171}}
 .num{{font-variant-numeric:tabular-nums}}
 button{{background:#1a1e29;color:#dde1e8;border:1px solid #2b3242;border-radius:6px;padding:.2rem .6rem;font-size:.8rem;cursor:pointer}}
@@ -214,7 +212,6 @@ button:hover{{background:#232938}}
 #updated{{color:#a5aec0;font-size:.78rem}}
 .ev-msg{{font-family:ui-monospace,SFMono-Regular,monospace;font-size:.8rem;color:#b8bfcd}}
 .pager{{display:flex;align-items:center;gap:.7rem;margin-top:.6rem}}
-tr.filler td{{height:1.72rem}} tr.filler:hover{{background:none}}
 button:disabled{{opacity:.4;cursor:default}}
 button:focus,select:focus,input:focus{{outline:none}}
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,summary:focus-visible{{outline:2px solid #7aa2ff;outline-offset:3px}}
@@ -241,7 +238,6 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 .sidecol table{{table-layout:fixed;width:100%}}
 .sidecol th{{padding:.5rem .6rem}}
 .sidecol td{{padding:.46rem .6rem;font-size:.82rem;line-height:1.35;overflow-wrap:break-word}}
-.sidecol tr.filler td{{height:1.1rem}}
 .sidecol th:nth-child(1),.sidecol td:nth-child(1){{width:5rem;white-space:nowrap}}
 .sidecol th:nth-child(2),.sidecol td:nth-child(2){{width:5.2rem;white-space:nowrap}}
 .sidecol th:nth-child(3),.sidecol td:nth-child(3){{width:3rem;white-space:nowrap}}
