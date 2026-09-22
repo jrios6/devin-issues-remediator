@@ -78,7 +78,25 @@ issues are deduplicated — each issue is dispatched at most once.
 |---|---|
 | `GET /` | Live HTML dashboard: every remediation, its session, its PR, and a recent event log |
 | `GET /api/tasks` · `/api/events` | Same data as JSON, including per-PR CI status, size (+/−), ACUs consumed + Devin mode, and aggregate totals / time-to-PR |
+| `GET /api/integrations` | GitHub and Devin read-sync health, successful sync timestamps, and per-resource failures |
 | issue comments | Per-issue narrative: session dispatched → PR opened |
+
+The dashboard prioritizes open PRs awaiting review or merge, merged and failed
+remediations, and average agent turnaround (dispatch to first PR, with sample
+count). Attention buttons filter open PRs, verified CI failures, failures, or
+running sessions whose latest detail is `waiting_for_user`. Size, reported ACUs,
+mode, and failure details expand within each issue row. **Detected** is the
+issue's first observation by this service, with an exact timestamp on hover.
+
+Integration health measures successful background reads, separately from the
+browser's dashboard fetch time. Each resource becomes stale after three polling
+intervals (at least 90 seconds); a successful issue poll cannot clear a failed
+PR/check sync. The integration timestamp is the oldest last-success timestamp
+across currently required reads. Tracking history resets on service restart,
+and idle integrations have no active reads required. Open PR CI is **Unverified**
+until its PR and check reads are both fresh, or if dashboard refresh fails.
+Completed PRs show their last recorded CI result. Missing ACU data is excluded
+from reported usage, with metering coverage shown explicitly.
 
 ## Credentials and initial setup
 
@@ -211,6 +229,10 @@ standard like PEP 8) so reviewers can verify the claim instead of trusting it.
 ```bash
 pip install pytest && pytest tests/
 ```
+
+With Node.js on `PATH`, the same command also runs JavaScript regression checks
+for attention filters, cached CI, sorting, pagination, escaping, and refresh
+failure/recovery. Without Node.js, that test is skipped.
 
 ## Safety rails
 

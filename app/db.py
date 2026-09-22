@@ -116,7 +116,8 @@ class Store:
 
     def update_metrics(self, issue_number: int, **fields):
         """Refresh session/PR metrics (acus, devin_mode, pr_* stats)."""
-        fields = {k: v for k, v in fields.items() if v is not None}
+        fields = {k: v for k, v in fields.items()
+                  if v is not None or k == "pr_checks"}
         if not fields:
             return
         sets = ", ".join(f"{k}=?" for k in fields)
@@ -158,7 +159,7 @@ class Store:
             dur = c.execute(
                 "SELECT AVG(pr_opened_at - dispatched_at) avg_s,"
                 " MIN(pr_opened_at - dispatched_at) min_s,"
-                " MAX(pr_opened_at - dispatched_at) max_s"
+                " MAX(pr_opened_at - dispatched_at) max_s, COUNT(*) sample_count"
                 " FROM remediations WHERE pr_opened_at IS NOT NULL AND dispatched_at IS NOT NULL"
             ).fetchone()
             totals = c.execute(

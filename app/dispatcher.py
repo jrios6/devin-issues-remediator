@@ -1,11 +1,11 @@
 import logging
 import threading
-import time
 
 from .config import Settings
 from .db import Store
 from .devin_client import DevinClient
 from .github_client import GitHubClient
+from .sync_health import SyncHealth
 
 log = logging.getLogger("dispatcher")
 
@@ -22,7 +22,7 @@ STRUCTURED_SCHEMA = {
 
 
 def build_prompt(issue: dict, repo: str) -> str:
-    labels = ",".join(l["name"] for l in issue.get("labels", []))
+    labels = ",".join(label["name"] for label in issue.get("labels", []))
     return f"""You are remediating issue #{issue['number']} in the repository {repo}.
 
 Issue title: {issue['title']}
@@ -52,6 +52,7 @@ class Dispatcher:
         self.devin = DevinClient(settings.devin_api_key, settings.devin_org_id,
                                  settings.devin_api_base)
         self._stop = threading.Event()
+        self.sync_health = SyncHealth()
         self.poller_enabled = settings.poll_interval_seconds > 0
         self.poller_interval = settings.poll_interval_seconds or 60
         # Runtime-tunable dispatch config (editable via /api/config)
@@ -62,7 +63,7 @@ class Dispatcher:
 
     def consider_issue(self, issue: dict, source: str) -> bool:
         """Dispatch a Devin session for a labeled issue we haven't seen."""
-        labels = {l["name"] for l in issue.get("labels", [])}
+        labels = {label["name"] for label in issue.get("labels", [])}
         if self.s.trigger_label not in labels:
             return False
         # Refetch the canonical issue so dispatch never depends on webhook payload fidelity
@@ -103,8 +104,23 @@ class Dispatcher:
     # ---------- background loops ----------
 
     def poll_issues_once(self) -> int:
-        issues = self.gh.list_labeled_issues(self.s.trigger_label)
+        with self.sync_health.observe("github", "issues"):
+            issues = self.gh.list_labeled_issues(self.s.trigger_label)
         return sum(self.consider_issue(i, "poller") for i in issues)
+
+    def integration_health(self) -> dict:
+        max_age = max(90, self.s.track_interval_seconds * 3)
+        expected: dict[str, dict[str, float]] = {"github": {}, "devin": {}}
+        if self.poller_enabled:
+            expected["github"]["issues"] = max(90, self.poller_interval * 3)
+        for row in self.store.active():
+            number = row["issue_number"]
+            if row["session_id"]:
+                expected["devin"][f"session:{number}"] = max_age
+            if row["state"] == "pr_opened":
+                expected["github"][f"pr:{number}"] = max_age
+                expected["github"][f"checks:{number}"] = max_age
+        return self.sync_health.snapshot(expected)
 
     def track_once(self):
         # Active remediations: evaluate each non-terminal record
@@ -119,7 +135,8 @@ class Dispatcher:
             n = r["issue_number"]
             # Session refresh: retry transient API failures on the next cycle
             try:
-                sess = self.devin.get_session(r["session_id"])
+                with self.sync_health.observe("devin", f"session:{n}"):
+                    sess = self.devin.get_session(r["session_id"])
             except Exception as e:  # noqa: BLE001
                 log.warning("status poll failed for issue #%s: %s", n, e)
                 continue
@@ -162,7 +179,8 @@ class Dispatcher:
         """Watch an open remediation PR until it merges (done) or closes (failed)."""
         n = r["issue_number"]
         try:
-            pr = self.gh.get_pull(r["pr_url"])
+            with self.sync_health.observe("github", f"pr:{n}"):
+                pr = self.gh.get_pull(r["pr_url"])
         except Exception as e:  # noqa: BLE001
             log.warning("PR state poll failed for issue #%s: %s", n, e)
             return
@@ -191,12 +209,14 @@ class Dispatcher:
                   "pr_files": pr["changed_files"], "pr_comments": pr["comments"],
                   "pr_opened_at": pr["created_at_ts"]}
         try:
-            fields["pr_checks"] = self.gh.check_summary(pr["head_sha"])
+            with self.sync_health.observe("github", f"checks:{n}"):
+                fields["pr_checks"] = self.gh.check_summary(pr["head_sha"])
         except Exception as e:  # noqa: BLE001
             log.warning("check-runs poll failed for issue #%s: %s", n, e)
         if r.get("session_id"):
             try:
-                sess = self.devin.get_session(r["session_id"])
+                with self.sync_health.observe("devin", f"session:{n}"):
+                    sess = self.devin.get_session(r["session_id"])
                 fields["acus"] = sess.get("acus_consumed")
                 fields["devin_mode"] = sess.get("devin_mode")
             except Exception as e:  # noqa: BLE001
