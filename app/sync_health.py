@@ -1,3 +1,11 @@
+"""Tracks when upstream GitHub/Devin reads last succeeded.
+
+`observe(provider, resource)` wraps each call, recording success time or a
+sanitized error; `snapshot()` reports healthy/stale/pending/error per resource.
+The dashboard's `checksFresh()` uses it to show CI as "Unverified" rather than
+trusting data fetched before the reads started failing. In-memory; resets on
+restart.
+"""
 import threading
 import time
 from collections.abc import Mapping
