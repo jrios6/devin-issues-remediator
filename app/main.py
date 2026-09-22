@@ -56,14 +56,18 @@ async def github_webhook(request: Request):
     return {"ok": True, "ignored": f"{event}:{payload.get('action')}"}
 
 
+# ---------- manual triggers ----------
+# Webhook and poller paths call Dispatcher directly; neither uses these routes.
+
 @app.post("/scan")
 def scan_now():
-    """Manual trigger — useful for demos without a public webhook."""
+    """Scan open labeled issues on demand."""
     return {"dispatched": dispatcher.poll_issues_once()}
 
 
 @app.post("/issues/{number}/dispatch")
 def dispatch_one(number: int):
+    """Check one issue for dispatch on demand."""
     issue = dispatcher.gh.get_issue(number)
     return {"dispatched": dispatcher.consider_issue(issue, source="manual")}
 
