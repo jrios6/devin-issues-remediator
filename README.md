@@ -88,8 +88,14 @@ running sessions whose latest detail is `waiting_for_user`. Size, reported ACUs,
 mode, and failure details expand within each issue row. **Detected** is the
 issue's first observation by this service, with an exact timestamp on hover.
 
-Integration health measures successful background reads, separately from the
-browser's dashboard fetch time. Each resource becomes stale after three polling
+Recent events appear in a side column on wide screens and below the remediation
+table on smaller screens. The dashboard fetches the latest 500 events, initially
+shows 50, and reveals up to 50 more with each **show more** click.
+
+Integration health remains available through `GET /api/integrations` and is used
+internally to verify CI freshness; the dashboard has no separate health cards.
+It measures successful background reads, separately from the browser's dashboard
+fetch time. Each resource becomes stale after three polling
 intervals (at least 90 seconds); a successful issue poll cannot clear a failed
 PR/check sync. The integration timestamp is the oldest last-success timestamp
 across currently required reads. Tracking history resets on service restart,
@@ -231,8 +237,8 @@ pip install pytest && pytest tests/
 ```
 
 With Node.js on `PATH`, the same command also runs JavaScript regression checks
-for attention filters, cached CI, sorting, pagination, escaping, and refresh
-failure/recovery. Without Node.js, that test is skipped.
+for attention filters, cached CI, remediation pagination, event expansion,
+sorting, escaping, and refresh failure/recovery. Without Node.js, that test is skipped.
 
 ## Safety rails
 
