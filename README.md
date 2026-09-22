@@ -81,28 +81,15 @@ issues are deduplicated — each issue is dispatched at most once.
 | `GET /api/integrations` | GitHub and Devin read-sync health, successful sync timestamps, and per-resource failures |
 | issue comments | Per-issue narrative: session dispatched → PR opened |
 
-The dashboard prioritizes open PRs awaiting review or merge, merged and failed
-remediations, and average agent turnaround (dispatch to first PR, with sample
-count). Attention buttons filter open PRs, verified CI failures, failures, or
-running sessions whose latest detail is `waiting_for_user`. Size, reported ACUs,
-mode, and failure details expand within each issue row. **Detected** is the
-issue's first observation by this service, with an exact timestamp on hover.
+The dashboard leads with what needs action: open PRs awaiting review or merge,
+merged/failed counts, and average dispatch-to-first-PR time. Attention buttons
+filter the table; each row expands for PR size, ACUs, mode, and failure detail.
+Recent events sit in a side rail (50 shown, **show more** reveals older ones).
 
-Recent events appear in a side column on wide screens and below the remediation
-table on smaller screens. The dashboard fetches the latest 500 events, initially
-shows 50, and reveals up to 50 more with each **show more** click.
-
-Integration health remains available through `GET /api/integrations` and is used
-internally to verify CI freshness; the dashboard has no separate health cards.
-It measures successful background reads, separately from the browser's dashboard
-fetch time. Each resource becomes stale after three polling
-intervals (at least 90 seconds); a successful issue poll cannot clear a failed
-PR/check sync. The integration timestamp is the oldest last-success timestamp
-across currently required reads. Tracking history resets on service restart,
-and idle integrations have no active reads required. Open PR CI is **Unverified**
-until its PR and check reads are both fresh, or if dashboard refresh fails.
-Completed PRs show their last recorded CI result. Missing ACU data is excluded
-from reported usage, with metering coverage shown explicitly.
+CI badges only report what the backend has verified recently:
+`GET /api/integrations` tracks the last successful upstream read per resource,
+and a badge shows **Unverified** until its PR and check reads are both fresh —
+so a dead token can't masquerade as a green board.
 
 ## Credentials and initial setup
 
