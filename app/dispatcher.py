@@ -107,22 +107,28 @@ class Dispatcher:
         return sum(self.consider_issue(i, "poller") for i in issues)
 
     def track_once(self):
+        # Active remediations: evaluate each non-terminal record
         for r in self.store.active():
+            # PR opened: switch from Devin tracking to GitHub tracking
             if r["state"] == "pr_opened":
                 self._track_pr(r)
                 continue
+            # Not trackable: skip records without a running Devin session
             if r["state"] != "running" or not r["session_id"]:
                 continue
             n = r["issue_number"]
+            # Session refresh: retry transient API failures on the next cycle
             try:
                 sess = self.devin.get_session(r["session_id"])
             except Exception as e:  # noqa: BLE001
                 log.warning("status poll failed for issue #%s: %s", n, e)
                 continue
             status, detail = sess.get("status"), sess.get("status_detail") or ""
+            # Dashboard metrics: capture current cost and execution mode
             self.store.update_metrics(n, acus=sess.get("acus_consumed"),
                                       devin_mode=sess.get("devin_mode"))
             prs = [p["pr_url"] for p in sess.get("pull_requests") or []]
+            # PR discovered: transition to review and notify GitHub
             if prs:
                 self.store.mark_completed(n, "pr_opened", prs[0], "awaiting merge")
                 self.store.set_pr_state(n, "open")
@@ -130,10 +136,12 @@ class Dispatcher:
                 self._safe_label_swap(n, self.s.in_progress_label, self.s.pr_opened_label)
                 self._safe_comment(n, f"Devin opened a remediation PR: {prs[0]}\n\n"
                                       "_Marked `devin-done` only after the PR merges._")
+            # Session active: persist only changed status details
             elif status in ("running", "claimed", "resuming", "new") and detail != "finished":
                 if detail != r.get("detail"):
                     self.store.mark_running(n, detail)
                     self.store.event("status", n, detail)
+            # Session finished without PR: mark the remediation failed
             elif status == "exit" or detail == "finished":
                 out = (sess.get("structured_output") or {})
                 self.store.mark_completed(n, "failed", None,
@@ -142,6 +150,7 @@ class Dispatcher:
                 self._safe_label_swap(n, self.s.in_progress_label, self.s.failed_label)
                 self._safe_comment(n, "Devin session finished without opening a PR. "
                                       f"Session: {sess.get('url')}")
+            # Unexpected session state: fail for human triage
             else:
                 self.store.mark_completed(n, "failed", None, f"{status}: {detail}")
                 self.store.event("failed", n, f"{status}: {detail}")
