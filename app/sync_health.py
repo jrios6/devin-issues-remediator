@@ -1,3 +1,21 @@
+"""Freshness ledger for upstream reads.
+
+The dashboard reloading every 10s only proves the dashboard is alive — it says
+nothing about whether the dispatcher's calls to GitHub/Devin are working. An
+expired token otherwise leaves stale data looking current.
+
+Dispatcher wraps each upstream call in `observe(provider, resource)` (e.g.
+`github:pr:11`, `github:issues`, `devin:session:<id>`), which records the last
+success time or a sanitized error (HTTP status only — never a response body).
+`snapshot(expected)` compares those readings against the resources the
+dispatcher expects to have read within `max_age` seconds and reports each as
+healthy / stale / pending / error; a provider with no readings is "idle".
+State is in-memory and resets on restart.
+
+Consumers: `GET /api/integrations` exposes the snapshot; the dashboard's
+`checksFresh()` uses it to show CI as "Unverified" rather than trusting a
+result fetched before the reads started failing.
+"""
 import threading
 import time
 from collections.abc import Mapping
