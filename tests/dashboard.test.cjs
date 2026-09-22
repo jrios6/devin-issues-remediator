@@ -4,8 +4,10 @@ const vm = require('node:vm');
 
 const html = fs.readFileSync(0, 'utf8');
 const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+const elementIds = new Set(Array.from(html.matchAll(/\bid="([^"]+)"/g), match => match[1]));
 const elements = new Map();
 function element(id) {
+  assert.ok(elementIds.has(id), `Dashboard element #${id} is missing`);
   if (!elements.has(id)) {
     const classes = new Set();
     elements.set(id, {
@@ -103,24 +105,71 @@ assert.equal(evaluate('taskOffset'), 0);
 assert.equal(element('tpageinfo').textContent, '0–0 of 0');
 assert.match(element('secondary-stats').innerHTML, /Unavailable/);
 
+evaluate(`
+  cachedEvents = Array.from({length: 120}, (_, i) => ({
+    ts: 100, kind: 'status', issue_number: i + 1, message: 'Event ' + (i + 1)
+  }));
+  renderEvents();
+`);
+assert.equal((element('eventrows').innerHTML.match(/<tr>/g) || []).length, 50);
+assert.match(element('eventrows').innerHTML, /Event 50</);
+assert.doesNotMatch(element('eventrows').innerHTML, /Event 51</);
+assert.equal(element('evmore').classList.contains('hidden'), false);
+assert.equal(element('evmore').textContent, 'show 50 more · 70 older');
+evaluate('evShowMore()');
+assert.equal((element('eventrows').innerHTML.match(/<tr>/g) || []).length, 100);
+assert.equal(element('evmore').textContent, 'show 20 more · 20 older');
+evaluate('evShowMore()');
+assert.equal((element('eventrows').innerHTML.match(/<tr>/g) || []).length, 120);
+assert.equal(element('evmore').classList.contains('hidden'), true);
+evaluate('cachedEvents = []; renderEvents()');
+assert.equal(element('eventrows').innerHTML, '');
+assert.equal(element('evmore').classList.contains('hidden'), true);
+
 (async () => {
+  evaluate(`
+    cached.tasks = [review];
+    integrationHealth.github.resources['pr:1'].status = 'healthy';
+    pageFresh = true;
+    setFilter('all');
+  `);
+  assert.equal(evaluate('needsAttention(review, "ci")'), true);
   await evaluate('refresh()');
   assert.equal(evaluate('pageFresh'), false);
   assert.equal(element('refresh-error').classList.contains('hidden'), false);
-  assert.match(element('integrations').innerHTML, /Unknown/);
   assert.match(element('refresh-error').textContent, /Showing cached data/);
-  context.fetch = async url => ({
-    ok: true,
-    json: async () => url === '/api/tasks'
-      ? {tasks: [], counts: {by_state: {}, totals: {}, durations: {}}}
-      : url === '/api/integrations'
-        ? {github: {status: 'idle', resources: {}}, devin: {status: 'idle', resources: {}}}
-        : url === '/api/poller' ? {enabled: false} : {events: [], total: 0},
-  });
+  assert.match(element('taskrows').innerHTML, /#1/);
+  assert.match(element('taskrows').innerHTML, /Unverified/);
+  assert.equal(evaluate('needsAttention(review, "ci")'), false);
+  assert.match(element('attention').innerHTML, /Failing CI · incomplete/);
+
+  const requests = new Set();
+  let tasksResponse = evaluate('cached');
+  let healthResponse = evaluate('integrationHealth');
+  context.fetch = async url => {
+    requests.add(url);
+    return {
+      ok: true,
+      json: async () => url === '/api/tasks' ? tasksResponse
+        : url === '/api/integrations' ? healthResponse
+          : url === '/api/poller' ? {enabled: false} : {events: [], total: 0},
+    };
+  };
   await evaluate('refresh()');
   assert.equal(evaluate('pageFresh'), true);
   assert.equal(element('refresh-error').classList.contains('hidden'), true);
-  assert.match(element('integrations').innerHTML, /Idle/);
+  assert.equal(requests.has('/api/integrations'), true);
+  assert.equal(requests.has('/api/events?limit=500'), true);
+  assert.equal(evaluate('needsAttention(review, "ci")'), true);
+  assert.doesNotMatch(element('taskrows').innerHTML, /Unverified/);
+  assert.doesNotMatch(element('attention').innerHTML, /incomplete/);
+
+  tasksResponse = {tasks: [], counts: {by_state: {}, totals: {}, durations: {}}};
+  healthResponse = {github: {status: 'idle', resources: {}}, devin: {status: 'idle', resources: {}}};
+  await evaluate('refresh()');
+  assert.equal(evaluate('pageFresh'), true);
+  assert.equal(evaluate('integrationHealth.github.status'), 'idle');
+  assert.equal(evaluate('integrationHealth.devin.status'), 'idle');
   assert.match(element('taskrows').innerHTML, /No issues yet/);
   evaluate('lastUpdate = Date.now() / 1000 - 31; tickUpdated()');
   assert.equal(evaluate('pageFresh'), false);
