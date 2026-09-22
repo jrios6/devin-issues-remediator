@@ -69,8 +69,10 @@ transitions to `devin-failed` instead.
  label: devin-done  label: devin-failed
 ```
 
-State lives in SQLite (`/data/remediator.db`), so restarts are safe and
-issues are deduplicated — each issue is dispatched at most once.
+State lives in SQLite (`/data/remediator.db`). Automatic intake deduplicates
+issues; sessions with recorded IDs continue tracking after restart. An interrupted
+dispatch or an uncertain session-creation result requires operator reconciliation,
+not an automatic retry that might launch duplicate paid work.
 
 ## Observability
 
@@ -208,6 +210,46 @@ DB_PATH=./remediator.db uvicorn app.main:app --port 8000
   ./scripts/simulate_webhook.sh 3        # simulate the webhook payload directly
   curl -X POST localhost:8000/issues/3/dispatch
   ```
+
+### Recover an interrupted dispatch
+
+Run one application process per database. On startup, queued records without a
+session ID (including legacy dispatch failures) become **Recovery required**.
+Creation timeouts and other uncertain creation results enter the same state.
+The dashboard's **Dispatch recovery** filter and `/api/events` expose these
+records; automatic scans never retry them.
+
+Check the Devin organization for a session with the `issue-remediation` and
+`issue-<number>` tags. Verify its prompt targets the correct repository and issue.
+If one exists, attach it without creating another session:
+
+```bash
+curl -X POST localhost:8000/issues/3/recover \
+  -H 'Content-Type: application/json' \
+  -d '{"session_id":"devin-<existing-id>","confirm_session_matches_issue":true}'
+```
+
+The service verifies the session ID, organization, and issue tags, then resumes
+tracking and uses the original session creation time for turnaround metrics.
+The explicit confirmation is needed because issue numbers can overlap between
+repositories. It refuses sessions already attached to another tracked issue.
+
+Only if you have confirmed that **no session was created**, retry:
+
+```bash
+curl -X POST localhost:8000/issues/3/recover \
+  -H 'Content-Type: application/json' \
+  -d '{"confirm_no_session":true}'
+```
+
+This rechecks that the issue is open and labeled, atomically claims recovery,
+and makes one creation attempt. A further timeout returns the task to recovery.
+If the original request may still be executing, wait and reconcile again; a
+negative lookup alone is not proof it never reached Devin. No automated retry
+or cross-system exactly-once guarantee is claimed.
+
+Like the existing manual dispatch endpoints, recovery is unauthenticated.
+Keep it local or behind the same access controls; it can authorize paid work.
 
 ### Writing good issues
 

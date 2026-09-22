@@ -95,6 +95,20 @@ evaluate('pageFresh = true; integrationHealth.github.resources["pr:1"].status = 
 assert.match(evaluate('ciBadge(review)'), /Unverified/);
 
 evaluate(`
+  const uncertain = {...base, issue_number: 30, state: 'recovery_required',
+    detail: 'Dispatch outcome unknown (<private>); reconcile first.'};
+  cached.tasks = [uncertain, failed];
+  setAttention('recovery');
+`);
+assert.equal(element('tpageinfo').textContent, '1–1 of 1');
+assert.match(element('taskrows').innerHTML, /Recovery required/);
+assert.match(element('taskrows').innerHTML, /&lt;private&gt;/);
+assert.doesNotMatch(element('taskrows').innerHTML, /<private>/);
+assert.equal(evaluate('needsAttention(failed, "recovery")'), false);
+evaluate('setFilter("recovery_required")');
+assert.equal(element('tpageinfo').textContent, '1–1 of 1');
+
+evaluate(`
   cached.tasks = Array.from({length: 12}, (_, i) => ({...base, issue_number: i + 1, state: 'queued'}));
   stateFilter = 'all'; taskOffset = 0; renderTasks(); tpage(1);
 `);

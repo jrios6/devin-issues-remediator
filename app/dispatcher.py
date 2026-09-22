@@ -75,10 +75,9 @@ class Dispatcher:
             return False  # already tracked
         self.store.event("detected", issue["number"], f"via {source}")
         log.info("issue #%s detected via %s", issue["number"], source)
-        self._dispatch(issue)
-        return True
+        return self._dispatch(issue)
 
-    def _dispatch(self, issue: dict):
+    def _dispatch(self, issue: dict) -> bool:
         n = issue["number"]
         try:
             resp = self.devin.create_session(
@@ -96,10 +95,50 @@ class Dispatcher:
             self._safe_comment(
                 n, f"Devin session dispatched: {resp['url']}\n\n"
                    "_Automated by the issue-remediation service._")
+            return True
         except Exception as e:  # noqa: BLE001 - record and keep service alive
-            log.exception("dispatch failed for issue #%s", n)
-            self.store.mark_completed(n, "failed", None, f"dispatch error: {e}")
-            self.store.event("failed", n, str(e))
+            detail = (f"Dispatch outcome unknown ({type(e).__name__}); "
+                      "reconcile with Devin before retrying.")
+            log.warning("issue #%s: %s", n, detail)
+            if self.store.require_recovery(n, detail):
+                self.store.event("recovery_required", n, detail)
+            return False
+
+    def recover_issue(self, number: int, session_id: str | None = None, *,
+                      confirm_no_session: bool = False,
+                      confirm_session_matches_issue: bool = False) -> dict:
+        row = self.store.get(number)
+        if not row or row["state"] != "recovery_required":
+            raise ValueError("Issue is not awaiting dispatch recovery")
+        if session_id:
+            if not confirm_session_matches_issue or confirm_no_session:
+                raise ValueError("Confirm this session belongs to this repository and issue")
+            session = self.devin.get_session(session_id)
+            tags = set(session.get("tags") or [])
+            if (session.get("session_id") != session_id
+                    or session.get("org_id") != self.s.devin_org_id
+                    or not {"issue-remediation", f"issue-{number}"} <= tags):
+                raise ValueError("Session organization, ID, or issue tags do not match")
+            if not self.store.attach_session(
+                number, session_id, session["url"], session["created_at"],
+            ):
+                raise ValueError("Recovery already claimed or session already tracked")
+            self.store.event("recovered", number, f"Attached existing session: {session['url']}")
+            self._safe_label_swap(number, self.s.trigger_label, self.s.in_progress_label)
+            self._safe_comment(number, f"Recovered existing Devin session: {session['url']}")
+        else:
+            if not confirm_no_session or confirm_session_matches_issue:
+                raise ValueError("Confirm no session was created before requesting a retry")
+            issue = self.gh.get_issue(number)
+            labels = {label["name"] for label in issue.get("labels", [])}
+            if (issue.get("state") != "open" or self.s.trigger_label not in labels
+                    or "pull_request" in issue):
+                raise ValueError("Issue must still be open and carry the trigger label")
+            if not self.store.claim_recovery(number):
+                raise ValueError("Recovery already claimed")
+            self.store.event("retry_requested", number, "Operator confirmed no session exists")
+            self._dispatch(issue)
+        return self.store.get(number) or {}
 
     # ---------- background loops ----------
 
@@ -232,6 +271,9 @@ class Dispatcher:
             self._stop.wait(interval)
 
     def start(self):
+        for number in self.store.flag_interrupted_dispatches():
+            self.store.event("recovery_required", number,
+                             "Dispatch interrupted; reconcile with Devin before retrying.")
         threading.Thread(target=self._poll_loop, daemon=True,
                          name="issue-poller").start()
         threading.Thread(target=self._loop, daemon=True, name="session-tracker",

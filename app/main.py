@@ -1,8 +1,10 @@
 import hashlib
 import hmac
 import logging
+import httpx
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from .config import load
 from .dashboard import render_dashboard
@@ -68,6 +70,23 @@ def dispatch_one(number: int):
     """Check one issue for dispatch on demand."""
     issue = dispatcher.gh.get_issue(number)
     return {"dispatched": dispatcher.consider_issue(issue, source="manual")}
+
+
+class RecoveryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    session_id: str | None = Field(default=None, pattern=r"^devin-[A-Za-z0-9_-]+$", max_length=128)
+    confirm_no_session: StrictBool = False
+    confirm_session_matches_issue: StrictBool = False
+
+
+@app.post("/issues/{number}/recover")
+def recover_issue(number: int, body: RecoveryRequest):
+    try:
+        return {"task": dispatcher.recover_issue(number, **body.model_dump())}
+    except ValueError as e:
+        return Response(str(e), status_code=409)
+    except httpx.HTTPError:
+        return Response("Upstream verification failed; recovery was not completed", status_code=502)
 
 
 # ---------- observability ----------

@@ -86,9 +86,54 @@ class Store:
         with self._lock, self._conn() as c:
             c.execute(
                 "UPDATE remediations SET state='running', session_id=?, session_url=?,"
-                " dispatched_at=? WHERE issue_number=?",
+                " dispatched_at=?, detail=NULL, completed_at=NULL WHERE issue_number=?",
                 (session_id, session_url, time.time(), issue_number),
             )
+
+    def get(self, issue_number: int) -> dict | None:
+        with self._conn() as c:
+            row = c.execute(
+                "SELECT * FROM remediations WHERE issue_number=?", (issue_number,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def flag_interrupted_dispatches(self) -> list[int]:
+        with self._lock, self._conn() as c:
+            rows = c.execute(
+                "UPDATE remediations SET state='recovery_required', completed_at=NULL,"
+                " detail='Dispatch interrupted; reconcile with Devin before retrying.'"
+                " WHERE session_id IS NULL AND (state='queued'"
+                " OR (state='failed' AND detail LIKE 'dispatch error:%'))"
+                " RETURNING issue_number"
+            ).fetchall()
+            return [row["issue_number"] for row in rows]
+
+    def require_recovery(self, issue_number: int, detail: str) -> bool:
+        with self._lock, self._conn() as c:
+            return c.execute(
+                "UPDATE remediations SET state='recovery_required', detail=?, completed_at=NULL"
+                " WHERE issue_number=? AND state='queued' AND session_id IS NULL",
+                (detail, issue_number),
+            ).rowcount == 1
+
+    def claim_recovery(self, issue_number: int) -> bool:
+        with self._lock, self._conn() as c:
+            return c.execute(
+                "UPDATE remediations SET state='queued', detail=NULL, completed_at=NULL"
+                " WHERE issue_number=? AND state='recovery_required' AND session_id IS NULL",
+                (issue_number,),
+            ).rowcount == 1
+
+    def attach_session(self, issue_number: int, session_id: str,
+                       session_url: str, created_at: float) -> bool:
+        with self._lock, self._conn() as c:
+            return c.execute(
+                "UPDATE remediations SET state='running', session_id=?, session_url=?,"
+                " dispatched_at=?, detail=NULL, completed_at=NULL"
+                " WHERE issue_number=? AND state='recovery_required' AND session_id IS NULL"
+                " AND NOT EXISTS (SELECT 1 FROM remediations WHERE session_id=?)",
+                (session_id, session_url, created_at, issue_number, session_id),
+            ).rowcount == 1
 
     def mark_running(self, issue_number: int, detail: str):
         with self._lock, self._conn() as c:

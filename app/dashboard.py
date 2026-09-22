@@ -63,6 +63,7 @@ summary{{cursor:pointer;width:fit-content}}
 tbody tr:hover{{background:#181d29}}
 .pill{{display:inline-block;padding:.1rem .55rem;border-radius:999px;font-size:.75rem;font-weight:600}}
 .pill.queued{{background:#2a2f3c;color:#b8bfcd}}
+.pill.recovery_required{{background:#3a2e14;color:#fbbf24}}
 .pill.running{{background:#3a2e14;color:#fbbf24}}
 .pill.pr_opened{{background:#2a2140;color:#c4b5fd}}
 .pill.merged{{background:#123528;color:#4ade80}}
@@ -160,6 +161,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <select id="statefilter" onchange="setFilter(this.value)">
 <option value="all">All states</option><option value="queued">Queued</option><option value="running">Running</option>
 <option value="pr_opened">PR open</option><option value="merged">Merged</option><option value="failed">Failed</option>
+<option value="recovery_required">Recovery required</option>
 </select></div></div>
 <div class="table-wrap"><table id="remediations"><thead><tr><th id="issueth" aria-sort="descending"><button class="sort-button" onclick="toggleSort()">Issue <span id="sortarrow">↓</span></button></th>
 <th>Status</th><th>CI</th><th>Actions</th><th>Detected</th></tr></thead>
@@ -200,9 +202,12 @@ const openPR = r => r.state === 'pr_opened' && (!r.pr_state || r.pr_state === 'o
 const stateLabels = {{queued: 'Queued', running: 'Working', pr_opened: 'PR open', merged: 'Merged', failed: 'Failed'}};
 const attentionLabels = {{review: 'PRs to review', ci: 'Failing CI', failed: 'Failed remediations', input: 'Waiting for input'}};
 let cached = null, cachedEvents = [], integrationHealth = {{}}, pageFresh = false, refreshId = 0, evShown = 50;
+stateLabels.recovery_required = 'Recovery required';
+attentionLabels.recovery = 'Dispatch recovery';
 const checksFresh = r => pageFresh && ['pr', 'checks'].every(kind =>
   integrationHealth.github?.resources?.[`${{kind}}:${{r.issue_number}}`]?.status === 'healthy');
 function needsAttention(r, filter) {{
+  if (filter === 'recovery') return r.state === 'recovery_required';
   return filter === 'review' ? openPR(r)
     : filter === 'ci' ? openPR(r) && r.pr_checks === 'failing' && checksFresh(r)
     : filter === 'failed' ? r.state === 'failed'
@@ -271,12 +276,14 @@ function renderTasks() {{
       : `<span class="add">+${{r.pr_additions}}</span> <span class="del">−${{r.pr_deletions}}</span>`
         + ` <span class="sub">· ${{r.pr_files}} file${{r.pr_files === 1 ? '' : 's'}}</span>`;
     const acus = r.acus == null ? 'Not reported' : r.acus.toFixed(2);
+    const recovery = r.state === 'recovery_required'
+      ? `<div class="detail-text">${{esc(r.detail || 'Dispatch needs reconciliation.')}} See README: Recover an interrupted dispatch.</div>` : '';
     const detail = r.state === 'failed' && r.detail
       ? `<div class="detail-text">Failure: ${{esc(r.detail)}}</div>` : '';
     return `<tr><td class="issue-cell">${{iss}}<details data-issue="${{r.issue_number}}" ${{expanded.has(String(r.issue_number)) ? 'open' : ''}}>`
       + `<summary>Details <span class="sub">· size, usage, mode</span></summary><div class="metrics">`
       + `<span>Change size: ${{size}}</span><span>ACUs: ${{acus}}</span><span>Mode: ${{esc(r.devin_mode || 'Not reported')}}</span></div>${{detail}}</details></td>`
-      + `<td>${{pill(r)}}</td><td>${{ciBadge(r)}}</td><td class="actions">${{pr}}${{sess}}</td>`
+      + `<td>${{pill(r)}}${{recovery}}</td><td>${{ciBadge(r)}}</td><td class="actions">${{pr}}${{sess}}</td>`
       + `<td class="sub detected"><time title="${{esc(new Date(r.created_at * 1000).toLocaleString())}}" datetime="${{new Date(r.created_at * 1000).toISOString()}}">${{ago(r.created_at)}}</time></td></tr>`;
   }}).join('') || `<tr><td colspan="5">${{t.tasks.length ? 'No matching remediations' : 'No issues yet'}}</td></tr>`;
   const tfrom = ttotal ? taskOffset + 1 : 0;
