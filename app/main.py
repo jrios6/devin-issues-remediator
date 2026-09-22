@@ -245,6 +245,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 .sidecol th:nth-child(1),.sidecol td:nth-child(1){{width:5rem;white-space:nowrap}}
 .sidecol th:nth-child(2),.sidecol td:nth-child(2){{width:5.2rem;white-space:nowrap}}
 .sidecol th:nth-child(3),.sidecol td:nth-child(3){{width:3rem;white-space:nowrap}}
+.evmore{{width:100%;margin-top:.4rem;padding:.45rem .6rem;text-align:left;color:#a5aec0;font-size:.8rem}}
+.evmore:hover{{color:#dde1e8}}
 @media(max-width:1050px){{.split{{grid-template-columns:1fr}}.sidecol{{border-left:none;padding-left:0;position:static}}}}
 @media(max-width:800px){{main{{padding:1rem}}.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}
 </style>
@@ -298,6 +300,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
+<button id="evmore" class="evmore hidden" onclick="evShowMore()"></button>
 </aside>
 </div>
 </main>
@@ -322,7 +325,7 @@ const waitingForInput = r => r.state === 'running' && !r.pr_url && r.detail === 
 const openPR = r => r.state === 'pr_opened' && (!r.pr_state || r.pr_state === 'open');
 const stateLabels = {{queued: 'Queued', running: 'Working', pr_opened: 'PR open', merged: 'Merged', failed: 'Failed'}};
 const attentionLabels = {{review: 'PRs to review', ci: 'Failing CI', failed: 'Failed remediations', input: 'Waiting for input'}};
-let cached = null, integrationHealth = {{}}, pageFresh = false, refreshId = 0;
+let cached = null, cachedEvents = [], integrationHealth = {{}}, pageFresh = false, refreshId = 0, evShown = 50;
 const checksFresh = r => pageFresh && ['pr', 'checks'].every(kind =>
   integrationHealth.github?.resources?.[`${{kind}}:${{r.issue_number}}`]?.status === 'healthy');
 function needsAttention(r, filter) {{
@@ -413,6 +416,20 @@ async function fetchJSON(url) {{
   if (!response.ok) throw new Error(`HTTP ${{response.status}}`);
   return response.json();
 }}
+function renderEvents() {{
+  document.getElementById('eventrows').innerHTML = cachedEvents.slice(0, evShown).map(ev =>
+    `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
+    + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
+    + `<td class="ev-msg">${{linkify(ev.message)}}</td></tr>`
+  ).join('');
+  const remaining = cachedEvents.length - evShown;
+  const more = document.getElementById('evmore');
+  more.classList.toggle('hidden', remaining <= 0);
+  if (remaining > 0) more.textContent = `show ${{Math.min(50, remaining)}} more · ${{remaining}} older`;
+}}
+
+function evShowMore() {{ evShown += 50; renderEvents(); }}
+
 async function refresh() {{
   const requestId = ++refreshId;
   try {{
@@ -429,11 +446,8 @@ async function refresh() {{
     document.getElementById('refresh-error').classList.add('hidden');
     renderTasks();
 
-    document.getElementById('eventrows').innerHTML = e.events.map(ev =>
-      `<tr><td class="sub">${{ago(ev.ts)}}</td><td>${{esc(ev.kind)}}</td>`
-      + `<td>${{ev.issue_number ? `<a href="${{ISSUE_BASE + ev.issue_number}}" target="_blank" rel="noopener">#${{ev.issue_number}}</a>` : ''}}</td>`
-      + `<td class="ev-msg">${{linkify(ev.message)}}</td></tr>`
-    ).join('');
+    cachedEvents = e.events;
+    renderEvents();
     const pb = document.getElementById('pollerbtn');
     pb.className = p.enabled ? '' : 'off';
     pb.innerHTML = '<span class="dot"></span>' + (p.enabled
