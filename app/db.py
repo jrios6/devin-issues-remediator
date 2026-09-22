@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS remediations (
     issue_number   INTEGER PRIMARY KEY,
     issue_title    TEXT NOT NULL,
     issue_url      TEXT NOT NULL,
-    state          TEXT NOT NULL,           -- queued | running | pr_opened | merged | failed
+    state          TEXT NOT NULL,           -- queued | running | suspended | pr_opened | merged | failed
     session_id     TEXT,
     session_url    TEXT,
     pr_url         TEXT,
@@ -93,7 +93,16 @@ class Store:
     def mark_running(self, issue_number: int, detail: str):
         with self._lock, self._conn() as c:
             c.execute(
-                "UPDATE remediations SET detail=? WHERE issue_number=? AND state='running'",
+                "UPDATE remediations SET state='running', detail=?"
+                " WHERE issue_number=? AND state IN ('running','suspended')",
+                (detail, issue_number),
+            )
+
+    def mark_suspended(self, issue_number: int, detail: str):
+        with self._lock, self._conn() as c:
+            c.execute(
+                "UPDATE remediations SET state='suspended', detail=?"
+                " WHERE issue_number=? AND state IN ('running','suspended')",
                 (detail, issue_number),
             )
 
@@ -129,7 +138,7 @@ class Store:
         """Work still needing attention: sessions in flight, plus open PRs awaiting merge."""
         with self._conn() as c:
             return [dict(r) for r in c.execute(
-                "SELECT * FROM remediations WHERE state IN ('queued','running')"
+                "SELECT * FROM remediations WHERE state IN ('queued','running','suspended')"
                 " OR (state='pr_opened' AND (pr_state IS NULL OR pr_state='open'))")]
 
     def all(self) -> list[dict]:

@@ -130,7 +130,7 @@ class Dispatcher:
                 self._track_pr(r)
                 continue
             # Not trackable: skip records without a running Devin session
-            if r["state"] != "running" or not r["session_id"]:
+            if r["state"] not in ("running", "suspended") or not r["session_id"]:
                 continue
             n = r["issue_number"]
             # Session refresh: retry transient API failures on the next cycle
@@ -153,9 +153,13 @@ class Dispatcher:
                 self._safe_label_swap(n, self.s.in_progress_label, self.s.pr_opened_label)
                 self._safe_comment(n, f"Devin opened a remediation PR: {prs[0]}\n\n"
                                       "_Marked `devin-done` only after the PR merges._")
+            elif status == "suspended":
+                if r["state"] != "suspended" or detail != r.get("detail"):
+                    self.store.mark_suspended(n, detail)
+                    self.store.event("suspended", n, detail or "Session suspended")
             # Session active: persist only changed status details
             elif status in ("running", "claimed", "resuming", "new") and detail != "finished":
-                if detail != r.get("detail"):
+                if r["state"] != "running" or detail != r.get("detail"):
                     self.store.mark_running(n, detail)
                     self.store.event("status", n, detail)
             # Session finished without PR: mark the remediation failed

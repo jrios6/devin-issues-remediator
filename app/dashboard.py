@@ -64,6 +64,7 @@ tbody tr:hover{{background:#181d29}}
 .pill{{display:inline-block;padding:.1rem .55rem;border-radius:999px;font-size:.75rem;font-weight:600}}
 .pill.queued{{background:#2a2f3c;color:#b8bfcd}}
 .pill.running{{background:#3a2e14;color:#fbbf24}}
+.pill.suspended{{background:#3a2e14;color:#fbbf24}}
 .pill.pr_opened{{background:#2a2140;color:#c4b5fd}}
 .pill.merged{{background:#123528;color:#4ade80}}
 .pill.failed{{background:#3b1a1a;color:#f87171}}
@@ -159,6 +160,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <div class="filters"><span id="active-filter" class="sub"></span><button id="clear-filter" class="hidden" onclick="setFilter('all')">Clear filter</button><label class="sub" for="statefilter">State</label>
 <select id="statefilter" onchange="setFilter(this.value)">
 <option value="all">All states</option><option value="queued">Queued</option><option value="running">Running</option>
+<option value="suspended">Suspended</option>
 <option value="pr_opened">PR open</option><option value="merged">Merged</option><option value="failed">Failed</option>
 </select></div></div>
 <div class="table-wrap"><table id="remediations"><thead><tr><th id="issueth" aria-sort="descending"><button class="sort-button" onclick="toggleSort()">Issue <span id="sortarrow">↓</span></button></th>
@@ -195,10 +197,11 @@ const linkify = s => esc(s).replace(/https?:\/\/\S+/g, u => {{
     : u.replace(/^https?:\/\//, '');
   return `<a href="${{u}}" target="_blank" rel="noopener">${{label}}</a>`;
 }});
-const waitingForInput = r => r.state === 'running' && !r.pr_url && r.detail === 'waiting_for_user';
+const waitingForInput = r => ['running', 'suspended'].includes(r.state) && !r.pr_url && r.detail === 'waiting_for_user';
+const waitingForApproval = r => ['running', 'suspended'].includes(r.state) && !r.pr_url && r.detail === 'waiting_for_approval';
 const openPR = r => r.state === 'pr_opened' && (!r.pr_state || r.pr_state === 'open');
-const stateLabels = {{queued: 'Queued', running: 'Working', pr_opened: 'PR open', merged: 'Merged', failed: 'Failed'}};
-const attentionLabels = {{review: 'PRs to review', ci: 'Failing CI', failed: 'Failed remediations', input: 'Waiting for input'}};
+const stateLabels = {{queued: 'Queued', running: 'Working', suspended: 'Suspended', pr_opened: 'PR open', merged: 'Merged', failed: 'Failed'}};
+const attentionLabels = {{review: 'PRs to review', ci: 'Failing CI', failed: 'Failed remediations', input: 'Paused or waiting'}};
 let cached = null, cachedEvents = [], integrationHealth = {{}}, pageFresh = false, refreshId = 0, evShown = 50;
 const checksFresh = r => pageFresh && ['pr', 'checks'].every(kind =>
   integrationHealth.github?.resources?.[`${{kind}}:${{r.issue_number}}`]?.status === 'healthy');
@@ -206,11 +209,12 @@ function needsAttention(r, filter) {{
   return filter === 'review' ? openPR(r)
     : filter === 'ci' ? openPR(r) && r.pr_checks === 'failing' && checksFresh(r)
     : filter === 'failed' ? r.state === 'failed'
-    : filter === 'input' ? waitingForInput(r) : true;
+    : filter === 'input' ? waitingForInput(r) || waitingForApproval(r) || r.state === 'suspended' : true;
 }}
 const pill = r => {{
-  const waiting = waitingForInput(r);
-  const label = waiting ? 'Waiting for input' : stateLabels[r.state] || r.state;
+  const waiting = waitingForInput(r) || waitingForApproval(r);
+  const label = waitingForInput(r) ? 'Waiting for input'
+    : waitingForApproval(r) ? 'Waiting for approval' : stateLabels[r.state] || r.state;
   return `<span class="pill ${{waiting ? 'waiting' : esc(r.state)}}">${{esc(label)}}</span>`;
 }};
 function ciBadge(r) {{
@@ -272,7 +276,9 @@ function renderTasks() {{
         + ` <span class="sub">· ${{r.pr_files}} file${{r.pr_files === 1 ? '' : 's'}}</span>`;
     const acus = r.acus == null ? 'Not reported' : r.acus.toFixed(2);
     const detail = r.state === 'failed' && r.detail
-      ? `<div class="detail-text">Failure: ${{esc(r.detail)}}</div>` : '';
+      ? `<div class="detail-text">Failure: ${{esc(r.detail)}}</div>`
+      : r.state === 'suspended'
+        ? `<div class="detail-text">Suspension reason: ${{esc(r.detail || 'Not reported')}}</div>` : '';
     return `<tr><td class="issue-cell">${{iss}}<details data-issue="${{r.issue_number}}" ${{expanded.has(String(r.issue_number)) ? 'open' : ''}}>`
       + `<summary>Details <span class="sub">· size, usage, mode</span></summary><div class="metrics">`
       + `<span>Change size: ${{size}}</span><span>ACUs: ${{acus}}</span><span>Mode: ${{esc(r.devin_mode || 'Not reported')}}</span></div>${{detail}}</details></td>`
