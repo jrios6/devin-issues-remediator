@@ -12,9 +12,13 @@ from .dispatcher import Dispatcher
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
-settings = load()
-store = Store(settings.db_path)
-dispatcher = Dispatcher(settings, store)
+# Import must not raise: deploy tooling imports this module to locate `app`.
+try:
+    settings = load()
+    store = Store(settings.db_path)
+    dispatcher = Dispatcher(settings, store)
+except RuntimeError:
+    settings = store = dispatcher = None
 app = FastAPI(title="devin-issue-remediator")
 
 
