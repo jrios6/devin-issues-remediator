@@ -244,11 +244,11 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 .sidecol{{border-left:1px solid #232733;padding-left:1rem;position:sticky;top:1rem}}
 .sidecol table{{table-layout:fixed;width:100%}}
 .sidecol th{{padding:.5rem .6rem}}
-.sidecol td{{padding:.32rem .6rem;font-size:.82rem;line-height:1.35;overflow-wrap:break-word}}
+.sidecol td{{padding:.46rem .6rem;font-size:.82rem;line-height:1.35;overflow-wrap:break-word}}
 .sidecol tr.filler td{{height:1.1rem}}
 .sidecol th:nth-child(1),.sidecol td:nth-child(1){{width:5rem;white-space:nowrap}}
 .sidecol th:nth-child(2),.sidecol td:nth-child(2){{width:5.2rem;white-space:nowrap}}
-.sidecol th:nth-child(3),.sidecol td:nth-child(3){{width:2.4rem;white-space:nowrap}}
+.sidecol th:nth-child(3),.sidecol td:nth-child(3){{width:3rem;white-space:nowrap}}
 @media(max-width:1050px){{.split{{grid-template-columns:1fr}}.sidecol{{border-left:none;padding-left:0;position:static}}}}
 @media(max-width:800px){{main{{padding:1rem}}.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}.health{{grid-template-columns:1fr}}}}
 </style>
@@ -513,7 +513,6 @@ function tickUpdated() {{
 async function page(d) {{
   offset = Math.max(0, offset + d * PAGE);
   await refresh();
-  window.scrollTo({{top: document.body.scrollHeight, behavior: 'smooth'}});
 }}
 function toggleCfg() {{
   document.getElementById('cfgmodal').classList.toggle('hidden');
