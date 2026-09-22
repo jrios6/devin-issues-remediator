@@ -239,6 +239,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 #cfgpanel .cfgfoot{{display:flex;align-items:center;gap:.7rem;justify-content:flex-end;border-top:1px solid #232733;padding-top:1rem;margin-top:.2rem}}
 #cfgpanel .primary{{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:600;padding:.42rem 1.3rem;font-size:.88rem}}
 #cfgpanel .primary:hover{{background:#3b82f6;border-color:#3b82f6}}
+.split{{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:1.2rem;align-items:start}}
+@media(max-width:1050px){{.split{{grid-template-columns:1fr}}}}
 @media(max-width:800px){{main{{padding:1rem}}.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}.health{{grid-template-columns:1fr}}}}
 </style>
 <main>
@@ -272,6 +274,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <span class="sub">Open PRs may need review or merge. Categories can overlap.</span>
 <h2>Integration health</h2>
 <div class="health" id="integrations"><div class="sub">Waiting for sync status…</div></div>
+<div class="split">
+<div>
 <div class="tblhead"><h2>Remediations</h2>
 <div class="filters"><span id="active-filter" class="sub"></span><button id="clear-filter" class="hidden" onclick="setFilter('all')">Clear filter</button><label class="sub" for="statefilter">State</label>
 <select id="statefilter" onchange="setFilter(this.value)">
@@ -286,6 +290,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <span id="tpageinfo" class="sub"></span>
 <button id="tnext" onclick="tpage(1)">next ›</button>
 </div>
+</div>
+<div>
 <h2>Recent events</h2>
 <table><thead><tr><th>When</th><th>Kind</th><th>Issue</th><th>Message</th></tr></thead>
 <tbody id="eventrows">{evs}</tbody></table>
@@ -293,6 +299,8 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 <button id="prev" onclick="page(-1)">‹ newer</button>
 <span id="pageinfo" class="sub"></span>
 <button id="next" onclick="page(1)">older ›</button>
+</div>
+</div>
 </div>
 </main>
 <script>
