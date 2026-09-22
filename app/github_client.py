@@ -55,10 +55,6 @@ class GitHubClient:
             "head_sha": pr["head"]["sha"],
         }
 
-    def get_pull_state(self, pr_url: str) -> str:
-        """'merged' | 'closed' | 'open' for a PR URL on this repo."""
-        return self.get_pull(pr_url)["state"]
-
     def check_summary(self, sha: str) -> str | None:
         """'passing' | 'failing' | 'pending' across all check runs on a commit."""
         runs: list[dict] = []
