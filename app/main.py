@@ -17,13 +17,17 @@ try:
     settings = load()
     store = Store(settings.db_path)
     dispatcher = Dispatcher(settings, store)
-except RuntimeError:
+except RuntimeError as _init_error:
     settings = store = dispatcher = None
+else:
+    _init_error = None
 app = FastAPI(title="devin-issue-remediator")
 
 
 @app.on_event("startup")
 def _startup():
+    if _init_error is not None:
+        raise _init_error
     if not settings.webhook_secret:
         logging.getLogger(__name__).warning(
             "GITHUB_WEBHOOK_SECRET unset: /webhooks/github is unauthenticated. "
