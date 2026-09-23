@@ -24,6 +24,22 @@ else:
 app = FastAPI(title="devin-issue-remediator")
 
 
+@app.middleware("http")
+async def gate_mutating(request: Request, call_next):
+    """Reads stay public; mutations need DASHBOARD_TOKEN (header or ?key=).
+
+    /webhooks/github is exempt — it carries its own HMAC signature check.
+    """
+    token = getattr(settings, "dashboard_token", "") or ""
+    if (token and request.method not in ("GET", "HEAD", "OPTIONS")
+            and request.url.path != "/webhooks/github"):
+        supplied = (request.headers.get("x-dashboard-token")
+                    or request.query_params.get("key") or "")
+        if not hmac.compare_digest(supplied, token):
+            return Response(status_code=401)
+    return await call_next(request)
+
+
 @app.on_event("startup")
 def _startup():
     if _init_error is not None:

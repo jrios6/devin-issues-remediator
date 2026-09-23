@@ -102,6 +102,7 @@ shared secret:
 | `DEVIN_ORG_ID` | Yes | Organization identifier used in the Devin v3 API URL; this is not a secret. |
 | `GITHUB_TOKEN` | Yes | Fine-grained GitHub PAT used to read issues and PRs and to update issue labels/comments. |
 | `GITHUB_WEBHOOK_SECRET` | Webhook only | Shared random value used to verify GitHub webhook signatures. It can be omitted when using only the poller locally. |
+| `DASHBOARD_TOKEN` | Public deploys | When set, mutating endpoints (`/scan`, `/dispatch`, `/api/config`, `/api/poller`) require it via `x-dashboard-token` header or `?key=`; reads and the dashboard stay public. |
 
 ### 1. Connect the repository to Devin
 
