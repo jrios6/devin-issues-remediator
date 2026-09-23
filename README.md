@@ -21,6 +21,12 @@ The normal transition is `devin-fix` → `devin-in-progress` →
 `devin-pr-opened` → `devin-done`. A failed session or closed-unmerged PR
 transitions to `devin-failed` instead.
 
+Suspended sessions remain tracked and keep their `devin-in-progress` label.
+The dashboard's **Paused or waiting** filter includes suspension, user-input,
+and approval waits; expand a suspended row for its reason. Resume the session
+in Devin after resolving the cause. The next tracking cycle picks up resumption
+or any PR already opened; suspension alone does not count as failure.
+
 ## Architecture
 
 ```text

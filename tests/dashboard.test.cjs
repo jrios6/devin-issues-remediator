@@ -126,6 +126,28 @@ evaluate('cachedEvents = []; renderEvents()');
 assert.equal(element('eventrows').innerHTML, '');
 assert.equal(element('evmore').classList.contains('hidden'), true);
 
+evaluate(`
+  const suspended = {...base, issue_number: 20, state: 'suspended',
+    detail: 'usage_limit_exceeded', session_url: 'https://example.com/session'};
+  const approval = {...base, issue_number: 21, state: 'running', detail: 'waiting_for_approval'};
+  cached.tasks = [suspended, approval, review];
+  setAttention('input');
+`);
+assert.equal(element('tpageinfo').textContent, '1–2 of 2');
+assert.match(element('taskrows').innerHTML, /Suspended/);
+assert.match(element('taskrows').innerHTML, /Suspension reason: usage_limit_exceeded/);
+assert.match(element('taskrows').innerHTML, /Waiting for approval/);
+assert.doesNotMatch(element('taskrows').innerHTML, /Review PR/);
+assert.equal(evaluate('needsAttention(suspended, "failed")'), false);
+assert.equal(evaluate('waitingForInput({...suspended, detail: "waiting_for_user"})'), true);
+assert.match(evaluate('pill({...suspended, detail: "waiting_for_approval"})'), /Waiting for approval/);
+assert.match(evaluate('pill({...review, detail: "waiting_for_approval"})'), /PR open/);
+evaluate('setFilter("suspended")');
+assert.equal(element('tpageinfo').textContent, '1–1 of 1');
+evaluate('suspended.detail = "<script>secret</script>"; renderTasks()');
+assert.match(element('taskrows').innerHTML, /&lt;script&gt;/);
+assert.doesNotMatch(element('taskrows').innerHTML, /<script>/);
+
 (async () => {
   evaluate(`
     cached.tasks = [review];
