@@ -66,11 +66,16 @@ class Dispatcher:
         labels = {label["name"] for label in issue.get("labels", [])}
         if self.s.trigger_label not in labels:
             return False
-        # Refetch the canonical issue so dispatch never depends on webhook payload fidelity
         try:
             issue = self.gh.get_issue(issue["number"])
         except Exception as e:  # noqa: BLE001
-            log.warning("refetch of issue #%s failed, using payload: %s", issue["number"], e)
+            log.warning("refetch of issue #%s failed; dispatch deferred: %s",
+                        issue["number"], type(e).__name__)
+            return False
+        labels = {label["name"] for label in issue.get("labels", [])}
+        if (issue.get("state") != "open" or self.s.trigger_label not in labels
+                or "pull_request" in issue):
+            return False
         if not self.store.upsert_queued(issue["number"], issue["title"], issue["html_url"]):
             return False  # already tracked
         self.store.event("detected", issue["number"], f"via {source}")
