@@ -27,7 +27,10 @@ function element(id) {
   return elements.get(id);
 }
 const context = vm.createContext({
-  Date, AbortSignal,
+  Date, AbortSignal, URLSearchParams,
+  location: { search: '' },
+  localStorage: { getItem: () => null, setItem() {} },
+  prompt: () => null,
   document: {
     getElementById: element, querySelectorAll: () => [],
     addEventListener() {},

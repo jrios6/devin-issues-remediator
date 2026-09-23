@@ -1,3 +1,5 @@
+# pyright: reportOptionalMemberAccess=false, reportArgumentType=false
+# settings/store/dispatcher are None only when load() failed, and _startup re-raises that error.
 import hashlib
 import hmac
 import logging

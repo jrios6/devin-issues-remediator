@@ -4,6 +4,7 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
+RUN mkdir -p /data
 
 ENV DB_PATH=/data/remediator.db
 EXPOSE 8000
