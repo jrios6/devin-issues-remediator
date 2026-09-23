@@ -14,6 +14,7 @@ class Settings:
     done_label: str = "devin-done"
     failed_label: str = "devin-failed"
     webhook_secret: str = ""
+    dashboard_token: str = ""  # gates mutating endpoints when set
     poll_interval_seconds: int = 60  # 0 disables the poller
     track_interval_seconds: int = 30
     db_path: str = "/data/remediator.db"
@@ -39,6 +40,7 @@ def load() -> Settings:
         trigger_label=os.environ.get("TRIGGER_LABEL", "devin-fix"),
         pr_opened_label=os.environ.get("PR_OPENED_LABEL", "devin-pr-opened"),
         webhook_secret=os.environ.get("GITHUB_WEBHOOK_SECRET", ""),
+        dashboard_token=os.environ.get("DASHBOARD_TOKEN", ""),
         poll_interval_seconds=int(os.environ.get("POLL_INTERVAL_SECONDS", "60")),
         track_interval_seconds=int(os.environ.get("TRACK_INTERVAL_SECONDS", "30")),
         db_path=os.environ.get("DB_PATH", "/data/remediator.db"),

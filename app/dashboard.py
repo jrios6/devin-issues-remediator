@@ -363,6 +363,22 @@ function toggleCfg() {{
 document.addEventListener('keydown', e => {{
   if (e.key === 'Escape') document.getElementById('cfgmodal').classList.add('hidden');
 }});
+let dashKey = new URLSearchParams(location.search).get('key')
+  || localStorage.getItem('dashKey') || '';
+if (dashKey) localStorage.setItem('dashKey', dashKey);
+async function apiFetch(url, opts) {{
+  opts = opts || {{}};
+  opts.headers = Object.assign({{}}, opts.headers,
+    dashKey ? {{'x-dashboard-token': dashKey}} : {{}});
+  let r = await fetch(url, opts);
+  if (r.status === 401) {{
+    const k = prompt('Dashboard key required for this action:');
+    if (k) {{ dashKey = k; localStorage.setItem('dashKey', k);
+      opts.headers['x-dashboard-token'] = k;
+      r = await fetch(url, opts); }}
+  }}
+  return r;
+}}
 let cfgLoaded = false;
 async function loadCfg() {{
   if (cfgLoaded) return;
@@ -380,7 +396,7 @@ async function saveCfg() {{
     devin_max_acu_limit: +document.getElementById('cfg-acu').value,
     poll_interval_seconds: +document.getElementById('cfg-poll').value,
   }};
-  const r = await fetch('/api/config', {{method: 'POST',
+  const r = await apiFetch('/api/config', {{method: 'POST',
     headers: {{'Content-Type': 'application/json'}}, body: JSON.stringify(body)}});
   document.getElementById('cfgmsg').textContent = r.ok ? 'saved' : await r.text();
   setTimeout(() => document.getElementById('cfgmsg').textContent = '', 3000);
@@ -388,7 +404,7 @@ async function saveCfg() {{
 }}
 async function togglePoller() {{
   const cur = await fetch('/api/poller').then(r => r.json());
-  await fetch('/api/poller', {{
+  await apiFetch('/api/poller', {{
     method: 'POST',
     headers: {{'Content-Type': 'application/json'}},
     body: JSON.stringify({{enabled: !cur.enabled}}),
