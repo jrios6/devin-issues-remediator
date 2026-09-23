@@ -75,8 +75,10 @@ or any PR already opened; suspension alone does not count as failure.
  label: devin-done  label: devin-failed
 ```
 
-State lives in SQLite (`/data/remediator.db`), so restarts are safe and
-issues are deduplicated — each issue is dispatched at most once.
+State lives in SQLite (`/data/remediator.db`), so restarts preserve tracking
+and issues are deduplicated — each issue is dispatched at most once. See
+[Known limitations](#known-limitations) for the two edge cases where a
+dispatch can need manual reconciliation.
 
 ## Observability
 
@@ -253,3 +255,24 @@ credentials and polling disabled. For a quick Python-only run, use
   unauthenticated (a startup warning is logged). For a public deployment,
   require the secret and protect or disable the unauthenticated `/scan` and
   `/issues/{number}/dispatch` endpoints.
+
+## Known limitations
+
+Dispatch is not exactly-once across the service and Devin; the deliberate
+choice is to never retry a possibly-successful session creation automatically,
+because that could start duplicate paid work.
+
+- **Restart between intake and dispatch.** An issue recorded as `queued` whose
+  process died before the Devin session was created stays `queued`; dedupe
+  prevents redispatch. Delete the row (`DELETE FROM remediations WHERE
+  issue_number=?`) and re-apply the trigger label, or call
+  `POST /issues/{number}/dispatch` after removing the row.
+- **Ambiguous session-creation failure.** If the create request times out or
+  errors, the record is marked `failed` with `dispatch error: …` (the issue
+  keeps its `devin-fix` label). The request may still have reached Devin.
+  Check the Devin org for a session tagged `issue-<number>` before deleting
+  the row and redispatching; if one exists, let it finish and review its PR
+  by hand.
+
+Both cases surface on the dashboard (as `Queued`/`Failed` rows with no
+session link) rather than being retried silently.
