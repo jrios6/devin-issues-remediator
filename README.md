@@ -227,12 +227,21 @@ standard like PEP 8) so reviewers can verify the claim instead of trusting it.
 ## Tests
 
 ```bash
-pip install pytest && pytest tests/
+pip install -r requirements-dev.txt
+bash scripts/check.sh
 ```
 
-With Node.js on `PATH`, the same command also runs JavaScript regression checks
-for attention filters, cached CI, remediation pagination, event expansion,
-sorting, escaping, and refresh failure/recovery. Without Node.js, that test is skipped.
+Use Python 3.12 and Node.js 22 for the same environment as CI. The check script
+requires Node on `PATH`, so dashboard JavaScript checks cannot silently skip.
+It runs pytest, Ruff, Pyright, and whitespace checks. The lifecycle tests use
+in-memory HTTP transports and temporary SQLite databases: they exercise signed
+webhooks, polling/manual intake, deduplication, session/PR tracking, labels,
+comments, metrics, and terminal outcomes without credentials or external calls.
+
+GitHub Actions runs this script on pull requests and pushes to `main`, then
+builds the Docker image and smoke-tests its health endpoint with dummy
+credentials and polling disabled. For a quick Python-only run, use
+`python -m pytest tests/ -q`; without Node, that command skips the JavaScript test.
 
 ## Safety rails
 
