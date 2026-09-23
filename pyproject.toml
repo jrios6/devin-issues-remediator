@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "cognition-takehome"
 version = "0.1.0"
@@ -8,3 +12,6 @@ dependencies = [
     "uvicorn[standard]>=0.30,<1.0",
     "httpx>=0.27,<1.0",
 ]
+
+[tool.setuptools]
+packages = ["app"]
